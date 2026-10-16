@@ -1,0 +1,31 @@
+{
+  "protocol": {
+    "delta_t_ms": 2000,
+    "pq_mode": false,
+    "dual_record": true,
+    "replay_cache": true,
+    "puf_noise_rate": 0.03,
+    "fe_repetition": 7,
+    "puf_max_reads": 3,
+    "puf_enrol_reads": 9,
+    "smartcard_max_attempts": 5
+  },
+  "federation": {
+    "trust_threshold": 0.6,
+    "trust_history_weight": 0.9,
+    "cache_ttl_ms": 60000,
+    "heartbeat_interval_ms": 500,
+    "heartbeat_misses": 3,
+    "lb_weights": {"load": 0.45, "trust": 0.25, "latency": 0.20, "home": 0.10}
+  },
+  "network": {
+    "access_local_ms": 10,
+    "access_remote_ms": 25,
+    "backhaul_ms": 8,
+    "jitter_ms": 2,
+    "loss_rate": 0.0,
+    "ta_queue_capacity": 200,
+    "attempt_timeout_ms": 1500,
+    "max_attempts": 3
+  }
+}

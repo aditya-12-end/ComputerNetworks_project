@@ -1,0 +1,14 @@
+{
+  "python": "3.12.6",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "processor": "Intel64 Family 6 Model 154 Stepping 4, GenuineIntel",
+  "machine": "AMD64",
+  "quick_mode": false,
+  "total_runtime_s": 1205.8367602825165,
+  "cpu_name": "12th Gen Intel(R) Core(TM) i7-1255U",
+  "last_run_steps": [
+    "E9 revocation and recovery",
+    "E10 security scenarios"
+  ],
+  "last_run_runtime_s": 5.866082429885864
+}

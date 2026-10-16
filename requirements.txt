@@ -1,0 +1,10 @@
+# Runtime (library, demo, experiments)
+numpy>=1.26
+matplotlib>=3.8
+
+# Report generation (report/build_report.py)
+python-docx>=1.1
+
+# Tests only: independent ASCON v1.2 reference implementation used to
+# cross-check hfselap/ascon.py (pinned: later releases implement NIST SP 800-232)
+ascon==0.0.9

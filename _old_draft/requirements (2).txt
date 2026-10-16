@@ -1,0 +1,14 @@
+{
+  "timestamp_tolerance_seconds": 30,
+  "minimum_federation_trust": 0.7,
+  "trust_history_weight": 0.8,
+  "selection_weights": {
+    "capacity": 0.35,
+    "availability": 0.2,
+    "reliability": 0.25,
+    "delay": 0.2
+    "cryptography">=42.0.0
+  },
+  "aead_key_bytes": 32,
+  "pseudonym_bytes": 16
+}

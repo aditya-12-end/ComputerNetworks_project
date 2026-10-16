@@ -1,0 +1,167 @@
+{
+  "scenarios": [
+    {
+      "attack": "Passive eavesdropping / traceability",
+      "target": "all messages",
+      "defence": "ASCON confidentiality, TID rotation, fresh nonces",
+      "blocked": true,
+      "observed": "no key or real ID on the wire; TID differs per session"
+    },
+    {
+      "attack": "Replay of Msg1 inside Delta T",
+      "target": "TA",
+      "defence": "replay cache (tag seen)",
+      "blocked": true,
+      "observed": "RTA-1: Msg1 replay detected"
+    },
+    {
+      "attack": "Replay of Msg1 after Delta T",
+      "target": "TA",
+      "defence": "timestamp freshness |T_R - T1| <= Delta T",
+      "blocked": true,
+      "observed": "RTA-1: Msg1 timestamp outside Delta T"
+    },
+    {
+      "attack": "Timestamp forgery on a replayed Msg1",
+      "target": "TA",
+      "defence": "T1 is an input of the ASCON key (M_A2)",
+      "blocked": true,
+      "observed": "RTA-1: Msg1 failed ASCON verification"
+    },
+    {
+      "attack": "Modification of Msg1",
+      "target": "TA",
+      "defence": "ASCON tag verification",
+      "blocked": true,
+      "observed": "RTA-1: Msg1 failed ASCON verification"
+    },
+    {
+      "attack": "Modification of Msg2",
+      "target": "UAV",
+      "defence": "ASCON tag verification",
+      "blocked": true,
+      "observed": "Msg2 failed ASCON verification (TA not authentic or PUF response not reproducible)"
+    },
+    {
+      "attack": "Modification of Msg3",
+      "target": "TA",
+      "defence": "ASCON tag verification",
+      "blocked": true,
+      "observed": "RTA-1: Msg3 failed ASCON verification"
+    },
+    {
+      "attack": "Modification of Msg4",
+      "target": "vehicle",
+      "defence": "ASCON tag verification",
+      "blocked": true,
+      "observed": "Msg4 failed ASCON verification"
+    },
+    {
+      "attack": "Vehicle impersonation (valid TID, forged ciphertext)",
+      "target": "TA",
+      "defence": "key needs PID_V and N_VR2",
+      "blocked": true,
+      "observed": "RTA-1: Msg1 failed ASCON verification"
+    },
+    {
+      "attack": "TA impersonation towards the UAV",
+      "target": "UAV",
+      "defence": "key needs PID_U (PUF-derived) and C_U",
+      "blocked": true,
+      "observed": "Msg2 failed ASCON verification (TA not authentic or PUF response not reproducible)"
+    },
+    {
+      "attack": "Random / guessed TID",
+      "target": "TA + Root",
+      "defence": "TID directory lookup",
+      "blocked": true,
+      "observed": "federation refused delegation: unknown vehicle"
+    },
+    {
+      "attack": "Stolen smart card + password guessing",
+      "target": "smart card",
+      "defence": "password-bound ASCON credential + lockout",
+      "blocked": true,
+      "observed": "5/5 guesses rejected; card locked"
+    },
+    {
+      "attack": "UAV cloning (card + password copied, different chip)",
+      "target": "UAV",
+      "defence": "PUF-derived PID_U cannot be reproduced",
+      "blocked": true,
+      "observed": "Msg2 failed ASCON verification (TA not authentic or PUF response not reproducible)"
+    },
+    {
+      "attack": "Physical capture / invasive tampering of a UAV",
+      "target": "UAV",
+      "defence": "tamper-evident PUF",
+      "blocked": true,
+      "observed": "Msg2 failed ASCON verification (TA not authentic or PUF response not reproducible)"
+    },
+    {
+      "attack": "Man-in-the-middle: splice Msg3 from another session",
+      "target": "TA",
+      "defence": "session-bound keys (N_A2, T3)",
+      "blocked": true,
+      "observed": "RTA-1: Msg3 failed ASCON verification"
+    },
+    {
+      "attack": "Replay of Msg2 to the UAV",
+      "target": "UAV",
+      "defence": "UAV replay cache",
+      "blocked": true,
+      "observed": "Msg2 replay detected"
+    },
+    {
+      "attack": "Desynchronisation: Msg4 blocked, with dual TID records",
+      "target": "TA/vehicle state",
+      "defence": "<TID_o, TID_c> dual record",
+      "blocked": true,
+      "observed": "next session succeeded"
+    },
+    {
+      "attack": "Revoked vehicle tries to authenticate (home and foreign RTA)",
+      "target": "all RTAs",
+      "defence": "federated revocation registry",
+      "blocked": true,
+      "observed": "RTA-1: federation refused delegation: vehicle credentials are revoked; RTA-2: federation refused delegation: vehicle credentials are revoked"
+    },
+    {
+      "attack": "Revoked UAV is requested by a vehicle",
+      "target": "RTA",
+      "defence": "revocation registry",
+      "blocked": true,
+      "observed": "federation refused delegation: uav credentials are revoked"
+    },
+    {
+      "attack": "Cross-region request through an untrusted RTA",
+      "target": "Root TA",
+      "defence": "trust threshold on delegation",
+      "blocked": true,
+      "observed": "federation refused delegation: RTA-1 is not trusted by RTA-2"
+    },
+    {
+      "attack": "Forged / replayed inter-TA control message",
+      "target": "RTA",
+      "defence": "ASCON link key + sequence numbers",
+      "blocked": true,
+      "observed": "forgery and replay rejected"
+    },
+    {
+      "attack": "Old credentials used after recovery / re-enrolment",
+      "target": "RTA",
+      "defence": "revocation + fresh credentials",
+      "blocked": true,
+      "observed": "old card rejected, re-enrolled vehicle accepted"
+    }
+  ],
+  "ablation_without_dual_record": {
+    "attack": "Desynchronisation: Msg4 blocked, WITHOUT dual TID records (ablation)",
+    "target": "TA/vehicle state",
+    "defence": "none",
+    "blocked": false,
+    "observed": "vehicle locked out: federation refused delegation: unknown vehicle"
+  },
+  "blocked": 22,
+  "total": 22
+}
