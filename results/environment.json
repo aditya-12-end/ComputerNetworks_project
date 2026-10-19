@@ -7,8 +7,8 @@
   "total_runtime_s": 1205.8367602825165,
   "cpu_name": "12th Gen Intel(R) Core(TM) i7-1255U",
   "last_run_steps": [
-    "E9 revocation and recovery",
-    "E10 security scenarios"
+    "E5 scalability (slowest step, about 15 min)",
+    "E7 mobility (about 8 min)"
   ],
-  "last_run_runtime_s": 5.866082429885864
+  "last_run_runtime_s": 1508.437327861786
 }

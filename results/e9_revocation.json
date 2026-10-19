@@ -2,55 +2,29 @@
   "rows": [
     {
       "N": 100,
-      "revoke_ms": 1.5173000010690885,
+      "revoke_ms": 0.7517999911215156,
       "revoke_bits": 1560,
       "rtas_notified": 3,
       "revoked_rejected_by_all_rtas": true,
-      "reenrol_ms": 2.2187000013218494,
+      "reenrol_ms": 0.9556000004522502,
       "reenrol_bits": 1176,
       "reenrolled_entity_authenticates": true,
-      "full_reset_ms": 194.48539999939385,
+      "full_reset_ms": 85.3105999995023,
       "full_reset_bits": 117600,
       "reset_entities": 100
     },
     {
-      "N": 500,
-      "revoke_ms": 1.341600000159815,
+      "N": 300,
+      "revoke_ms": 0.8480000105919316,
       "revoke_bits": 1560,
       "rtas_notified": 3,
       "revoked_rejected_by_all_rtas": true,
-      "reenrol_ms": 1.4371999986906303,
+      "reenrol_ms": 1.6871999978320673,
       "reenrol_bits": 1176,
       "reenrolled_entity_authenticates": true,
-      "full_reset_ms": 721.1622999984684,
-      "full_reset_bits": 588000,
-      "reset_entities": 500
-    },
-    {
-      "N": 1000,
-      "revoke_ms": 0.9773000001587206,
-      "revoke_bits": 1560,
-      "rtas_notified": 3,
-      "revoked_rejected_by_all_rtas": true,
-      "reenrol_ms": 1.7315000004600734,
-      "reenrol_bits": 1176,
-      "reenrolled_entity_authenticates": true,
-      "full_reset_ms": 1513.2004999995843,
-      "full_reset_bits": 1176000,
-      "reset_entities": 1000
-    },
-    {
-      "N": 2000,
-      "revoke_ms": 0.9112999996432336,
-      "revoke_bits": 1560,
-      "rtas_notified": 3,
-      "revoked_rejected_by_all_rtas": true,
-      "reenrol_ms": 1.1895999996340834,
-      "reenrol_bits": 1176,
-      "reenrolled_entity_authenticates": true,
-      "full_reset_ms": 2671.8142999998236,
-      "full_reset_bits": 2352000,
-      "reset_entities": 2000
+      "full_reset_ms": 313.79139999626204,
+      "full_reset_bits": 352800,
+      "reset_entities": 300
     }
   ]
 }
