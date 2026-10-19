@@ -2,12 +2,12 @@
   "scenarios": {
     "Intra-region (home RTA serves)": {
       "air_bits": {
-        "msg1": 544,
-        "msg2": 672,
-        "msg3": 416,
+        "msg1": 1056,
+        "msg2": 800,
+        "msg3": 928,
         "msg4": 800
       },
-      "air_total": 2432,
+      "air_total": 3584,
       "backhaul": {
         "tid_sync": {
           "messages": 1,
@@ -19,12 +19,12 @@
     },
     "Cross-region, first request (cold cache)": {
       "air_bits": {
-        "msg1": 544,
-        "msg2": 672,
-        "msg3": 416,
+        "msg1": 1056,
+        "msg2": 800,
+        "msg3": 928,
         "msg4": 800
       },
-      "air_total": 2432,
+      "air_total": 3584,
       "backhaul": {
         "tid_sync": {
           "messages": 1,
@@ -36,20 +36,20 @@
         },
         "record_uav": {
           "messages": 1,
-          "bits": 1016
+          "bits": 1280
         }
       },
-      "backhaul_total": 2280,
+      "backhaul_total": 2544,
       "serving_ta": "RTA-1"
     },
     "Cross-region, cached credential": {
       "air_bits": {
-        "msg1": 544,
-        "msg2": 672,
-        "msg3": 416,
+        "msg1": 1056,
+        "msg2": 800,
+        "msg3": 928,
         "msg4": 800
       },
-      "air_total": 2432,
+      "air_total": 3584,
       "backhaul": {
         "tid_sync": {
           "messages": 1,
@@ -61,12 +61,12 @@
     },
     "Fail-over / load-shared to foreign RTA (cold)": {
       "air_bits": {
-        "msg1": 544,
-        "msg2": 672,
-        "msg3": 416,
+        "msg1": 1056,
+        "msg2": 800,
+        "msg3": 928,
         "msg4": 800
       },
-      "air_total": 2432,
+      "air_total": 3584,
       "backhaul": {
         "tid_sync": {
           "messages": 2,
@@ -78,7 +78,7 @@
         },
         "record_uav": {
           "messages": 1,
-          "bits": 1016
+          "bits": 1280
         },
         "fetch_vehicle": {
           "messages": 1,
@@ -86,20 +86,20 @@
         },
         "record_vehicle": {
           "messages": 1,
-          "bits": 1176
+          "bits": 1440
         }
       },
-      "backhaul_total": 4720,
+      "backhaul_total": 5248,
       "serving_ta": "RTA-2"
     },
     "Fail-over / load-shared to foreign RTA (cached)": {
       "air_bits": {
-        "msg1": 544,
-        "msg2": 672,
-        "msg3": 416,
+        "msg1": 1056,
+        "msg2": 800,
+        "msg3": 928,
         "msg4": 800
       },
-      "air_total": 2432,
+      "air_total": 3584,
       "backhaul": {
         "tid_sync": {
           "messages": 2,
@@ -119,26 +119,42 @@
       }
     },
     "deposit_vehicle": {
+      "partial_key_request": {
+        "messages": 1,
+        "bits": 888
+      },
+      "partial_key": {
+        "messages": 1,
+        "bits": 880
+      },
       "deposit_vehicle": {
         "messages": 1,
-        "bits": 1176
+        "bits": 1440
       }
     },
     "deposit_uav": {
+      "partial_key_request": {
+        "messages": 1,
+        "bits": 760
+      },
+      "partial_key": {
+        "messages": 1,
+        "bits": 880
+      },
       "deposit_uav": {
         "messages": 1,
-        "bits": 1016
+        "bits": 1280
       }
     }
   },
   "storage_bits": {
-    "Vehicle smart card": 768,
-    "UAV smart card": 1408,
-    "Regional TA, per own vehicle <TID_o,TID_c,N_VR2,M_VR1>": 640,
-    "Regional TA, per own UAV <ID_U,M_UR1,C_U>": 512,
-    "Regional TA, per cached foreign vehicle <TID_o,TID_c,N_VR2,PID_V>": 640,
-    "Root TA escrow, per vehicle (sealed)": 1072,
-    "Root TA escrow, per UAV (sealed)": 912
+    "Vehicle smart card": 1024,
+    "UAV smart card": 896,
+    "Regional TA, per own vehicle <TID_o,TID_c,N_VR2,M_VR1,Q_V>": 904,
+    "Regional TA, per own UAV <ID_U,M_UR1,C_U,Q_U>": 776,
+    "Regional TA, per cached foreign vehicle <TID_o,TID_c,N_VR2,PID_V,Q_V>": 904,
+    "Root TA escrow, per vehicle (sealed)": 1336,
+    "Root TA escrow, per UAV (sealed)": 1176
   },
   "storage_reported_selap": {
     "Vehicle (SELAP, reported)": 768,

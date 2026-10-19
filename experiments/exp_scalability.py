@@ -4,7 +4,7 @@ Authentication requests arrive as a Poisson process.  70 % of them come from
 vehicles of Region-A (the disaster epicentre); the rest are split evenly over
 the other regions.  Four deployments are compared:
 
-* SELAP baseline - one TA serves everybody;
+* single-TA baseline - one TA serves everybody (no federation);
 * HF-SELAP with 3 RTAs but static routing (each request goes to its home RTA);
 * HF-SELAP with 2 and with 3 RTAs and the load balancer enabled.
 """
@@ -18,7 +18,7 @@ from common import (BLUE, ORANGE, AQUA, YELLOW, MARKERS, REGIONS, build_federati
 from hfselap.simulation import Simulation
 
 CONFIGS = [
-    ("SELAP (single TA)", 1, "lb"),
+    ("Single TA (no federation)", 1, "lb"),
     ("HF-SELAP, 3 RTAs, static routing", 3, "home"),
     ("HF-SELAP, 2 RTAs, load-balanced", 2, "lb"),
     ("HF-SELAP, 3 RTAs, load-balanced", 3, "lb"),
@@ -68,8 +68,11 @@ def averaged(n, routing, rate, window_ms, seeds, vpr, upr):
     """Run one load point with several independent seeds and average the metrics."""
     runs = [run_point(n, routing, rate, window_ms, sd, vpr, upr) for sd in seeds]
     keys = ("success_rate", "mean_latency_ms", "p95_latency_ms", "jain_fairness",
-            "throughput_per_s", "mean_attempts", "delegated_fraction")
+            "load_imbalance", "throughput_per_s", "mean_attempts", "delegated_fraction")
     out = {k: sum(r[k] for r in runs) / len(runs) for k in keys}
+    parts = [r["t_auth_breakdown_ms"] for r in runs if r["t_auth_breakdown_ms"]]
+    out["t_auth_breakdown_ms"] = ({k: sum(p[k] for p in parts) / len(parts) for k in parts[0]}
+                                  if parts else {})
     out.update(offered_rate=rate, repeats=len(runs),
                success_rate_min=min(r["success_rate"] for r in runs),
                success_rate_max=max(r["success_rate"] for r in runs),
@@ -77,7 +80,7 @@ def averaged(n, routing, rate, window_ms, seeds, vpr, upr):
     return out
 
 
-def main(rates=(500, 1000, 1500, 2000, 2500, 3000), window_ms=2000.0,
+def main(rates=(300, 600, 900, 1200, 1500, 1800, 2100), window_ms=2000.0,
          vehicles_per_region=1500, uavs_per_region=20, repeats=2):
     out = {"rates": list(rates), "window_ms": window_ms, "hotspot_share": HOTSPOT,
            "repeats": repeats, "configs": {}}
@@ -91,7 +94,7 @@ def main(rates=(500, 1000, 1500, 2000, 2500, 3000), window_ms=2000.0,
             points.append(p)
             print(f"{name:36s} {rate:5d}/s  success {p['success_rate']:.3f}  "
                   f"mean {p['mean_latency_ms']:.1f} ms  p95 {p['p95_latency_ms']:.1f}  "
-                  f"jain {p['jain_fairness']:.3f}", flush=True)
+                  f"LI {p['load_imbalance']:.3f}", flush=True)
         out["configs"][name] = points
     save_json("e5_scalability", out)
     plot(out)

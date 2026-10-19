@@ -4,7 +4,10 @@ Responsibilities (Case Study 2, "Federation / Root TA" block):
 
 * provisions one ASCON-128 link key per Regional TA (authenticated, replay-
   protected inter-TA channel, :class:`SecureLink`);
-* keeps the inter-TA trust matrix and a reliability score per RTA;
+* hosts the Key Generation Centre (KGC) of the certificateless scheme and
+  issues partial private keys D_E during enrolment;
+* keeps the inter-TA trust matrix (Trust_new = alpha Trust_old + (1 - alpha) S)
+  and a reliability score per RTA;
 * escrows every entity's credential record (sealed under the root key) so
   that a trusted RTA can serve a foreign entity (cross-region service, load
   sharing, fail-over) without the entity re-registering;
@@ -22,14 +25,16 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from . import ascon
+from . import certificateless as cl
 from .ascon import AsconAuthError
 from .config import Config
 from .entities import AuthError
 from .messages import (DEPOSIT_UAV, DEPOSIT_VEHICLE, FETCH_UAV, FETCH_VEHICLE, HEARTBEAT,
-                       INTER_HEADER, NACK, RECORD_UAV, RECORD_VEHICLE, REVOKE, TID_SYNC,
-                       TID_SYNC_BODY, UAV_RECORD, VEHICLE_RECORD)
+                       INTER_HEADER, NACK, PARTIAL_KEY, PARTIAL_KEY_REQUEST, RECORD_UAV,
+                       RECORD_VEHICLE, REVOKE, TID_SYNC, TID_SYNC_BODY, UAV_RECORD,
+                       VEHICLE_RECORD)
 from .primitives import METER, Clock, acting_as, encode_ts, fresh, rand
-from . import ascon
 
 if TYPE_CHECKING:                                    # pragma: no cover
     from .ta import RegionalTA, UAVRecord, VehicleRecord
@@ -37,7 +42,8 @@ if TYPE_CHECKING:                                    # pragma: no cover
 MSG_NAMES = {FETCH_VEHICLE: "fetch_vehicle", FETCH_UAV: "fetch_uav",
              RECORD_VEHICLE: "record_vehicle", RECORD_UAV: "record_uav",
              TID_SYNC: "tid_sync", REVOKE: "revoke", HEARTBEAT: "heartbeat",
-             DEPOSIT_VEHICLE: "deposit_vehicle", DEPOSIT_UAV: "deposit_uav", NACK: "nack"}
+             DEPOSIT_VEHICLE: "deposit_vehicle", DEPOSIT_UAV: "deposit_uav", NACK: "nack",
+             PARTIAL_KEY_REQUEST: "partial_key_request", PARTIAL_KEY: "partial_key"}
 _ZERO16 = bytes(16)
 
 
@@ -100,6 +106,7 @@ class RootTA:
     def __init__(self, cfg: Config, clock: Clock):
         self.cfg, self.clock = cfg, clock
         self.k_root = rand(16)
+        self.kgc = cl.KGC()                    # master secret s, P_pub = s*G
         self.tas: dict[str, "RegionalTA"] = {}
         self.ta_ids: dict[str, int] = {}
         self.trust: dict[tuple[str, str], float] = {}
@@ -144,10 +151,20 @@ class RootTA:
             return True
         return self.trust.get((home, serving), 0.0) >= self.cfg.federation.trust_threshold
 
-    def observe(self, ta_name: str, ok: bool):
-        """EWMA reliability update used by the load balancer."""
-        w = self.cfg.federation.trust_history_weight
-        self.reliability[ta_name] = w * self.reliability[ta_name] + (1 - w) * (1.0 if ok else 0.0)
+    def observe(self, ta_name: str, ok: bool, homes=()):
+        """Record one service outcome S of ``ta_name``.
+
+        Reliability R_i (used by the load balancer) and the trust of every home
+        RTA in ``homes`` towards the serving RTA follow the same update
+        X_new = alpha * X_old + (1 - alpha) * S, with alpha = trust_history_weight.
+        """
+        a = self.cfg.federation.trust_history_weight
+        sample = 1.0 if ok else 0.0
+        self.reliability[ta_name] = a * self.reliability[ta_name] + (1 - a) * sample
+        for home in homes:
+            key = (home, ta_name)
+            if home != ta_name and key in self.trust:
+                self.trust[key] = a * self.trust[key] + (1 - a) * sample
 
     @property
     def federated(self) -> bool:
@@ -208,10 +225,27 @@ class RootTA:
         nonce, c, tag = self.escrow[handle]
         return 8 * (len(nonce) + len(c) + len(tag))
 
+    # -------------------------------------------------- key generation
+    def issue_partial_key(self, ta: "RegionalTA", ident: bytes, x_pub: bytes) -> tuple[bytes, int]:
+        """KGC: partial private key (R_E, D_E) for an entity enrolling at ``ta``.
+
+        The request carries ID_E and X_E; the answer carries R_E and D_E.  Both
+        travel over the ASCON inter-TA link, and the RTA hands D_E to the entity
+        over the secure enrolment channel.
+        """
+        _, body = self._send_to_root(ta, PARTIAL_KEY_REQUEST,
+                                     bytes([len(ident)]) + ident + x_pub)
+        ident, x_pub = body[1:1 + body[0]], body[1 + body[0]:]
+        with acting_as("root"):
+            r_pub, d = self.kgc.extract_partial_key(ident, x_pub)
+        _, body = self._send_to_ta(ta, PARTIAL_KEY, r_pub + d.to_bytes(cl.SCALAR_BYTES, "big"))
+        self._audit("partial_key_issued", ta=ta.name)
+        return body[:cl.POINT_BYTES], int.from_bytes(body[cl.POINT_BYTES:], "big")
+
     # -------------------------------------------------------- deposits
     def deposit_vehicle(self, ta: "RegionalTA", rec: "VehicleRecord", pid: bytes):
         body = VEHICLE_RECORD.pack(rec.handle, rec.tid_o or _ZERO16, rec.tid_c, rec.n_vr2, pid,
-                                   self.ta_ids[ta.name], rec.version)
+                                   rec.pk, self.ta_ids[ta.name], rec.version)
         _, body = self._send_to_root(ta, DEPOSIT_VEHICLE, body)
         handle = body[:16]
         self._escrow_put(handle, body)
@@ -220,7 +254,7 @@ class RootTA:
         self._audit("vehicle_deposited", ta=ta.name)
 
     def deposit_uav(self, ta: "RegionalTA", rec: "UAVRecord", pid: bytes):
-        body = UAV_RECORD.pack(rec.handle, rec.id_u, pid, rec.c_u, self.ta_ids[ta.name])
+        body = UAV_RECORD.pack(rec.handle, rec.id_u, pid, rec.c_u, rec.pk, self.ta_ids[ta.name])
         _, body = self._send_to_root(ta, DEPOSIT_UAV, body)
         handle, id_u = body[:16], body[16:32]
         self._escrow_put(handle, body)
@@ -250,13 +284,13 @@ class RootTA:
         record = self._escrow_get(handle)
         if kind == "vehicle":
             _, body = self._send_to_ta(ta, RECORD_VEHICLE, record)
-            h_, tid_o, tid_c, n_vr2, pid, home_id, ver = VEHICLE_RECORD.unpack(body)
+            h_, tid_o, tid_c, n_vr2, pid, q, home_id, ver = VEHICLE_RECORD.unpack(body)
             rec = VehicleRecord(h_, None if tid_o == _ZERO16 else tid_o, tid_c, n_vr2,
-                                self.home[h_], ver, pid=pid)
+                                self.home[h_], q, ver, pid=pid)
         else:
             _, body = self._send_to_ta(ta, RECORD_UAV, record)
-            h_, id_u, pid, c_u, home_id = UAV_RECORD.unpack(body)
-            rec = UAVRecord(h_, id_u, c_u, self.home[h_], pid=pid)
+            h_, id_u, pid, c_u, q, home_id = UAV_RECORD.unpack(body)
+            rec = UAVRecord(h_, id_u, c_u, self.home[h_], q, pid=pid)
         if self.home[handle] != ta.name:
             self.subscribers[handle].add(ta.name)
         self._audit("fetch_granted", ta=ta.name, kind=kind)

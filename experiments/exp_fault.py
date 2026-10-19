@@ -3,7 +3,7 @@
 Timeline (simulated): requests arrive at a constant Poisson rate for 12 s;
 RTA-1 fails at t = 4 s and recovers at t = 8 s.  Compared deployments:
 
-* SELAP baseline (single TA = RTA-1);
+* single-TA baseline (RTA-1 only, no federation);
 * HF-SELAP with 3 RTAs but static home routing (no fail-over);
 * HF-SELAP with 3 RTAs, heartbeat monitoring and load-balanced fail-over.
 
@@ -20,7 +20,7 @@ from common import (BLUE, ORANGE, AQUA, MARKERS, REGIONS, build_federation, new_
                     save_figure, save_json)
 from hfselap.simulation import Simulation
 
-CONFIGS = [("SELAP (single TA)", 1, "lb"),
+CONFIGS = [("Single TA (no federation)", 1, "lb"),
            ("HF-SELAP, static routing", 3, "home"),
            ("HF-SELAP, heartbeat fail-over", 3, "lb")]
 FAIL_AT, RECOVER_AT, DURATION, BIN = 4000.0, 8000.0, 12000.0, 250.0

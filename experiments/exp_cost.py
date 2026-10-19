@@ -1,9 +1,9 @@
 """E2/E11/E12 - per-entity computation cost, post-quantum mode and energy.
 
 Every AKA step is timed individually on the real implementation:
-vehicle (A-1 + A-6), UAV (A-4) and serving TA (A-2/A-3 + A-5).  The TA
-column of the federated scenarios includes the write-through TID
-synchronisation with the root (the cost HF-SELAP adds to SELAP).
+vehicle (A-1 + A-6), UAV (A-4) and serving TA (A-2/A-3 + A-5), including the
+certificateless signing and verification.  The asynchronous write-through TID
+synchronisation with the root is timed separately ("sync").
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def timed(fn, *args):
 
 def one_run(s, v, u, ta):
     sid = secrets.randbits(32)
-    m1, tv1 = timed(v.start, u.id_u)
+    m1, tv1 = timed(v.start, u.id_u, ta.ident)
     (m2, f1), tt1 = timed(s.run_ta_step, ta, ta.handle_msg1, m1, sid)
     m3, tu = timed(u.respond, m2, sid)
     (m4, f2), tt2 = timed(s.run_ta_step, ta, ta.handle_msg3, m3, sid)
@@ -45,7 +45,7 @@ def one_run(s, v, u, ta):
             "sync_ops": {a: o for a, o in sync_ops.items() if o}}
 
 
-SCENARIOS = [("SELAP baseline (single TA)", 1, False, False),
+SCENARIOS = [("Single TA (no federation)", 1, False, False),
              ("HF-SELAP intra-region", 3, False, False),
              ("HF-SELAP cross-region (delegated)", 3, False, True),
              ("HF-SELAP post-quantum (Ascon-80pq)", 3, True, False)]
@@ -117,7 +117,7 @@ def main(runs: int = 400, warmup: int = 150):
 
 def plot(out):
     names = [k for k in out if not k.startswith("_")]
-    labels = ["SELAP (single TA)", "HF-SELAP intra-region", "HF-SELAP cross-region",
+    labels = ["Single TA (no federation)", "HF-SELAP intra-region", "HF-SELAP cross-region",
               "HF-SELAP post-quantum"]
     entities = [("vehicle", "Vehicle"), ("uav", "UAV"), ("ta", "Serving TA")]
     fig, ax = new_figure(6.4, 3.3)

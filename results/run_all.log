@@ -1,0 +1,185 @@
+
+=== E1 primitives ===
+SHA-256 hash (Th)                          0.0005 ms (sd 0.0005)
+Ascon-128 encryption, 64 B (Ta)            0.1634 ms (sd 0.0287)
+Ascon-128 decryption, 64 B (Ta)            0.1714 ms (sd 0.0462)
+Ascon-80pq encryption, 64 B                0.1769 ms (sd 0.0445)
+ECDSA P-256 signing (Ts)                   0.0246 ms (sd 0.0065)
+ECDSA P-256 verification (Tv)              0.0831 ms (sd 0.0344)
+--- E1 primitives finished in 1.4 s
+
+=== E2 computation cost ===
+Single TA (no federation)              V 0.960  U 0.940  TA 2.021  sync 0.001  total 3.921 ms
+HF-SELAP intra-region                  V 0.928  U 0.924  TA 2.000  sync 1.578  total 3.852 ms
+HF-SELAP cross-region (delegated)      V 0.948  U 0.935  TA 1.989  sync 1.568  total 3.872 ms
+HF-SELAP post-quantum (Ascon-80pq)     V 0.978  U 0.943  TA 2.050  sync 1.608  total 3.971 ms
+--- E2 computation cost finished in 13.1 s
+
+=== E3/E4 communication and storage ===
+Intra-region (home RTA serves)                     air 3584 bits  backhaul 776 bits
+Cross-region, first request (cold cache)           air 3584 bits  backhaul 2544 bits
+Cross-region, cached credential                    air 3584 bits  backhaul 776 bits
+Fail-over / load-shared to foreign RTA (cold)      air 3584 bits  backhaul 5248 bits
+Fail-over / load-shared to foreign RTA (cached)    air 3584 bits  backhaul 1552 bits
+storage {'Vehicle smart card': 1024, 'UAV smart card': 896, 'Regional TA, per own vehicle <TID_o,TID_c,N_VR2,M_VR1,Q_V>': 904, 'Regional TA, per own UAV <ID_U,M_UR1,C_U,Q_U>': 776, 'Regional TA, per cached foreign vehicle <TID_o,TID_c,N_VR2,PID_V,Q_V>': 904, 'Root TA escrow, per vehicle (sealed)': 1336, 'Root TA escrow, per UAV (sealed)': 1176}
+--- E3/E4 communication and storage finished in 0.4 s
+
+=== E8 certificateless key management ===
+Secret value x_E, X_E = x_E G (entity)         0.0653 ms
+Partial private key R_E, D_E (KGC)             0.2184 ms
+Partial-key validation (entity)                0.7434 ms
+Full private key SK_E = x_E + D_E (entity)     0.0534 ms
+Verification key Q_E (RTA)                     0.8392 ms
+Sign sigma_E (entity, per AKA)                 0.0454 ms
+Verify sigma_E (RTA, per AKA)                  0.1154 ms
+enrolment: vehicle 5.171 ms, UAV 4.878 ms
+--- E8 certificateless key management finished in 6.6 s
+
+=== E9 revocation and recovery ===
+N=100: revoke 1.20 ms/1560 b, re-enrol 5.41 ms/3208 b, full reset 741 ms/320800 b
+N=500: revoke 1.79 ms/1560 b, re-enrol 8.77 ms/3208 b, full reset 3506 ms/1604000 b
+N=1000: revoke 0.64 ms/1560 b, re-enrol 5.55 ms/3208 b, full reset 7145 ms/3208000 b
+N=2000: revoke 1.89 ms/1560 b, re-enrol 5.09 ms/3208 b, full reset 11307 ms/6416000 b
+--- E9 revocation and recovery finished in 22.8 s
+
+=== E10 security scenarios ===
+BLOCKED Passive eavesdropping / traceability
+BLOCKED Replay of Msg1 inside Delta T
+BLOCKED Replay of Msg1 after Delta T
+BLOCKED Timestamp forgery on a replayed Msg1
+BLOCKED Modification of Msg1
+BLOCKED Modification of Msg2
+BLOCKED Modification of Msg3
+BLOCKED Modification of Msg4
+BLOCKED Vehicle impersonation (valid TID, forged ciphertext)
+BLOCKED TA impersonation towards the UAV
+BLOCKED Random / guessed TID
+BLOCKED Stolen smart card + password guessing
+BLOCKED Vehicle impersonation with leaked symmetric credentials (no SK_V)
+BLOCKED UAV impersonation with copied symmetric credentials (no SK_U)
+BLOCKED Public-key replacement (Type-I certificateless adversary)
+BLOCKED Malicious KGC signs with the partial key D_U (Type-II adversary)
+BLOCKED Forged partial private key at enrolment
+BLOCKED Msg1 replayed to a different RTA inside Delta T
+BLOCKED Man-in-the-middle: splice Msg3 from another session
+BLOCKED Replay of Msg2 to the UAV
+BLOCKED Desynchronisation: Msg4 blocked, with dual TID records
+BLOCKED Revoked vehicle tries to authenticate (home and foreign RTA)
+BLOCKED Revoked UAV is requested by a vehicle
+BLOCKED Cross-region request through an untrusted RTA
+BLOCKED Forged / replayed inter-TA control message
+BLOCKED Old credentials used after recovery / re-enrolment
+26/26 attacks blocked; ablation blocked=False
+--- E10 security scenarios finished in 2.5 s
+
+=== E6 fault tolerance ===
+Single TA (no federation)        outage timely 0.0%  eventual 54.0%  overall 83.4%  detections [('RTA-1', 5462.303520673071)]
+HF-SELAP, static routing         outage timely 68.7%  eventual 91.3%  overall 96.9%  detections [('RTA-1', 5472.104991118191)]
+HF-SELAP, heartbeat fail-over    outage timely 91.4%  eventual 100.0%  overall 100.0%  detections [('RTA-1', 5472.104991118191)]
+--- E6 fault tolerance finished in 226.0 s
+
+=== E5 scalability (slowest step, about 25 min) ===
+  running Single TA (no federation), 300 requests/s (2 run(s))...
+Single TA (no federation)              300/s  success 1.000  mean 50.3 ms  p95 54.9  LI 0.000
+  running Single TA (no federation), 600 requests/s (2 run(s))...
+Single TA (no federation)              600/s  success 0.962  mean 236.3 ms  p95 432.0  LI 0.000
+  running Single TA (no federation), 900 requests/s (2 run(s))...
+Single TA (no federation)              900/s  success 0.708  mean 406.9 ms  p95 508.8  LI 0.000
+  running Single TA (no federation), 1200 requests/s (2 run(s))...
+Single TA (no federation)             1200/s  success 0.532  mean 423.5 ms  p95 519.6  LI 0.000
+  running Single TA (no federation), 1500 requests/s (2 run(s))...
+Single TA (no federation)             1500/s  success 0.433  mean 426.3 ms  p95 512.3  LI 0.000
+  running Single TA (no federation), 1800 requests/s (2 run(s))...
+Single TA (no federation)             1800/s  success 0.394  mean 397.0 ms  p95 478.8  LI 0.000
+  running Single TA (no federation), 2100 requests/s (2 run(s))...
+Single TA (no federation)             2100/s  success 0.337  mean 398.0 ms  p95 472.2  LI 0.000
+  running HF-SELAP, 3 RTAs, static routing, 300 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, static routing       300/s  success 1.000  mean 50.0 ms  p95 54.5  LI 0.127
+  running HF-SELAP, 3 RTAs, static routing, 600 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, static routing       600/s  success 1.000  mean 51.9 ms  p95 58.8  LI 0.266
+  running HF-SELAP, 3 RTAs, static routing, 900 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, static routing       900/s  success 1.000  mean 120.0 ms  p95 228.0  LI 0.359
+  running HF-SELAP, 3 RTAs, static routing, 1200 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, static routing      1200/s  success 0.867  mean 263.4 ms  p95 491.6  LI 0.324
+  running HF-SELAP, 3 RTAs, static routing, 1500 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, static routing      1500/s  success 0.786  mean 248.4 ms  p95 487.5  LI 0.294
+  running HF-SELAP, 3 RTAs, static routing, 1800 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, static routing      1800/s  success 0.712  mean 243.6 ms  p95 499.5  LI 0.257
+  running HF-SELAP, 3 RTAs, static routing, 2100 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, static routing      2100/s  success 0.661  mean 231.3 ms  p95 497.5  LI 0.216
+  running HF-SELAP, 2 RTAs, load-balanced, 300 requests/s (2 run(s))...
+HF-SELAP, 2 RTAs, load-balanced        300/s  success 1.000  mean 50.3 ms  p95 55.1  LI 0.109
+  running HF-SELAP, 2 RTAs, load-balanced, 600 requests/s (2 run(s))...
+HF-SELAP, 2 RTAs, load-balanced        600/s  success 1.000  mean 53.6 ms  p95 63.5  LI 0.218
+  running HF-SELAP, 2 RTAs, load-balanced, 900 requests/s (2 run(s))...
+HF-SELAP, 2 RTAs, load-balanced        900/s  success 1.000  mean 147.8 ms  p95 246.4  LI 0.172
+  running HF-SELAP, 2 RTAs, load-balanced, 1200 requests/s (2 run(s))...
+HF-SELAP, 2 RTAs, load-balanced       1200/s  success 1.000  mean 259.0 ms  p95 415.1  LI 0.029
+  running HF-SELAP, 2 RTAs, load-balanced, 1500 requests/s (2 run(s))...
+HF-SELAP, 2 RTAs, load-balanced       1500/s  success 0.915  mean 364.6 ms  p95 631.4  LI 0.008
+  running HF-SELAP, 2 RTAs, load-balanced, 1800 requests/s (2 run(s))...
+HF-SELAP, 2 RTAs, load-balanced       1800/s  success 0.798  mean 396.8 ms  p95 658.2  LI 0.004
+  running HF-SELAP, 2 RTAs, load-balanced, 2100 requests/s (2 run(s))...
+HF-SELAP, 2 RTAs, load-balanced       2100/s  success 0.664  mean 423.2 ms  p95 673.1  LI 0.003
+  running HF-SELAP, 3 RTAs, load-balanced, 300 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, load-balanced        300/s  success 1.000  mean 50.5 ms  p95 55.3  LI 0.147
+  running HF-SELAP, 3 RTAs, load-balanced, 600 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, load-balanced        600/s  success 1.000  mean 52.8 ms  p95 62.2  LI 0.279
+  running HF-SELAP, 3 RTAs, load-balanced, 900 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, load-balanced        900/s  success 1.000  mean 97.5 ms  p95 163.8  LI 0.308
+  running HF-SELAP, 3 RTAs, load-balanced, 1200 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, load-balanced       1200/s  success 1.000  mean 142.2 ms  p95 240.8  LI 0.219
+  running HF-SELAP, 3 RTAs, load-balanced, 1500 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, load-balanced       1500/s  success 1.000  mean 236.5 ms  p95 405.2  LI 0.055
+  running HF-SELAP, 3 RTAs, load-balanced, 1800 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, load-balanced       1800/s  success 1.000  mean 189.3 ms  p95 305.8  LI 0.083
+  running HF-SELAP, 3 RTAs, load-balanced, 2100 requests/s (2 run(s))...
+HF-SELAP, 3 RTAs, load-balanced       2100/s  success 0.999  mean 278.5 ms  p95 490.1  LI 0.014
+--- E5 scalability (slowest step, about 25 min) finished in 1672.1 s
+
+=== E7 mobility (about 8 min) ===
+  running Single TA (no federation), 20 km/h...
+Single TA (no federation)             20 km/h    33.5 req/s  success 100.00%  timely 95.67%  mean 157.3 ms  lockouts 0  delegated 0%
+  running Single TA (no federation), 40 km/h...
+Single TA (no federation)             40 km/h    67.9 req/s  success 100.00%  timely 94.66%  mean 176.1 ms  lockouts 0  delegated 0%
+  running Single TA (no federation), 60 km/h...
+Single TA (no federation)             60 km/h   100.8 req/s  success 100.00%  timely 94.12%  mean 187.1 ms  lockouts 0  delegated 0%
+  running Single TA (no federation), 80 km/h...
+Single TA (no federation)             80 km/h   131.7 req/s  success 99.91%  timely 91.49%  mean 229.3 ms  lockouts 0  delegated 0%
+  running Single TA (no federation), 100 km/h...
+Single TA (no federation)            100 km/h   166.0 req/s  success 99.91%  timely 90.53%  mean 246.6 ms  lockouts 0  delegated 0%
+  running Single TA (no federation), 120 km/h...
+Single TA (no federation)            120 km/h   198.3 req/s  success 99.72%  timely 89.06%  mean 271.5 ms  lockouts 0  delegated 0%
+  running Single TA (no federation), 140 km/h...
+Single TA (no federation)            140 km/h   235.1 req/s  success 99.73%  timely 86.86%  mean 313.2 ms  lockouts 0  delegated 0%
+  running HF-SELAP (3 RTAs), 20 km/h...
+HF-SELAP (3 RTAs)                     20 km/h    33.5 req/s  success 99.93%  timely 96.64%  mean 116.7 ms  lockouts 0  delegated 68%
+  running HF-SELAP (3 RTAs), 40 km/h...
+HF-SELAP (3 RTAs)                     40 km/h    67.9 req/s  success 100.00%  timely 94.63%  mean 150.4 ms  lockouts 0  delegated 69%
+  running HF-SELAP (3 RTAs), 60 km/h...
+HF-SELAP (3 RTAs)                     60 km/h   100.8 req/s  success 100.00%  timely 93.83%  mean 165.1 ms  lockouts 0  delegated 68%
+  running HF-SELAP (3 RTAs), 80 km/h...
+HF-SELAP (3 RTAs)                     80 km/h   131.7 req/s  success 99.94%  timely 91.70%  mean 200.5 ms  lockouts 0  delegated 69%
+  running HF-SELAP (3 RTAs), 100 km/h...
+HF-SELAP (3 RTAs)                    100 km/h   166.0 req/s  success 99.88%  timely 91.16%  mean 211.5 ms  lockouts 0  delegated 70%
+  running HF-SELAP (3 RTAs), 120 km/h...
+HF-SELAP (3 RTAs)                    120 km/h   198.3 req/s  success 99.85%  timely 88.38%  mean 258.2 ms  lockouts 0  delegated 70%
+  running HF-SELAP (3 RTAs), 140 km/h...
+HF-SELAP (3 RTAs)                    140 km/h   235.1 req/s  success 99.72%  timely 86.48%  mean 288.4 ms  lockouts 0  delegated 72%
+  running HF-SELAP without dual TID records, 20 km/h...
+HF-SELAP without dual TID records     20 km/h    33.5 req/s  success 98.81%  timely 96.86%  mean 94.3 ms  lockouts 16  delegated 67%
+  running HF-SELAP without dual TID records, 40 km/h...
+HF-SELAP without dual TID records     40 km/h    67.9 req/s  success 97.94%  timely 94.44%  mean 118.8 ms  lockouts 56  delegated 68%
+  running HF-SELAP without dual TID records, 60 km/h...
+HF-SELAP without dual TID records     60 km/h   100.8 req/s  success 97.17%  timely 93.60%  mean 119.2 ms  lockouts 114  delegated 67%
+  running HF-SELAP without dual TID records, 80 km/h...
+HF-SELAP without dual TID records     80 km/h   131.7 req/s  success 96.26%  timely 91.76%  mean 137.8 ms  lockouts 193  delegated 68%
+  running HF-SELAP without dual TID records, 100 km/h...
+HF-SELAP without dual TID records    100 km/h   166.0 req/s  success 94.88%  timely 89.67%  mean 150.4 ms  lockouts 338  delegated 69%
+  running HF-SELAP without dual TID records, 120 km/h...
+HF-SELAP without dual TID records    120 km/h   198.3 req/s  success 93.36%  timely 87.06%  mean 170.0 ms  lockouts 519  delegated 69%
+  running HF-SELAP without dual TID records, 140 km/h...
+HF-SELAP without dual TID records    140 km/h   235.1 req/s  success 92.16%  timely 85.55%  mean 178.2 ms  lockouts 725  delegated 70%
+--- E7 mobility (about 8 min) finished in 1184.4 s
+
+Done in 3131 s; results are in results/

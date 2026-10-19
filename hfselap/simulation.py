@@ -1,7 +1,7 @@
 """Discrete-event simulation of HF-SELAP over a lossy, delayed network.
 
 Every authentication request in the simulation executes the *real* protocol
-code (ASCON, SHA-256, PUF, fuzzy extractor, federation messages).  The CPU
+code (ASCON, SHA-256, certificateless signatures, federation messages).  The CPU
 time measured for each computation becomes the service time of that step, so
 queueing at Regional TAs and UAVs emerges from measured costs rather than
 assumed constants.  Network hops add latency + Gaussian jitter and may lose
@@ -10,6 +10,12 @@ messages; the vehicle retries after a timeout, choosing another TA.
 Simulated time is in milliseconds and drives the protocol's SimClock, so
 timestamp freshness (Delta T) is checked against simulated delays,
 including queueing delay.
+
+For every successful request the end-to-end delay is decomposed as
+T_auth = T_req + T_TA + T_authz + T_UAV + T_resp (+ time lost in earlier,
+failed attempts): uplink of Msg1, RTA queueing and processing, delegated
+credential fetches from the Root TA, the RTA -> UAV -> RTA leg, and the
+downlink of Msg4 with step A-6.
 """
 
 from __future__ import annotations
@@ -45,6 +51,7 @@ class RequestRecord:
     reason: str = ""
     tas: list = field(default_factory=list)
     delegated: bool = False
+    breakdown: dict | None = None
 
 
 @dataclass
@@ -56,6 +63,8 @@ class _Attempt:
     sid: int
     excluded: set
     done: bool = False
+    marks: dict = field(default_factory=dict)      # simulated times of each stage
+    fetch_ms: float = 0.0
 
 
 class _Server:
@@ -101,6 +110,7 @@ class Simulation:
         self.skipped = 0
         self.federation_ms = 0.0               # CPU spent on asynchronous inter-TA sync
         self.msg_bits = 0
+        self.last_ta_activity = 0.0            # relative time of the last RTA completion
         if heartbeats:
             for name in system.root.tas:
                 self._at(0.0, self._heartbeat, name, 0)
@@ -224,7 +234,8 @@ class Simulation:
         req.attempts += 1
         req.tas.append(ta.name)
         att = _Attempt(req, vehicle, uav, ta, secrets.randbits(32), set(excluded))
-        msg1, err, dt = self._measure(vehicle.start, uav.id_u)
+        att.marks["start"] = self.clock.now_ms()
+        msg1, err, dt = self._measure(vehicle.start, uav.id_u, ta.ident)
         if err is not None:
             return self._finish(req, False, f"vehicle: {err}")
         self._after(self.cfg.network.attempt_timeout_ms, self._timeout, att)
@@ -262,6 +273,7 @@ class Simulation:
             self._after(self._latency(ta.region, att.vehicle.region),
                         self._start_attempt, att.req, att.excluded | {ta.name})
             return
+        att.marks.setdefault("ta_in1" if stage == "msg1" else "ta_in3", self.clock.now_ms())
         srv.queue.append((att, stage, msg))
         ta.queue_len = len(srv)
         if not srv.busy:
@@ -285,11 +297,14 @@ class Simulation:
         srv = self.ta_srv[ta.name]
         if epoch != srv.epoch:                      # TA failed during service
             return
+        self.last_ta_activity = self.now_rel()
         if isinstance(err, NeedRecord):
             # fetch the delegated credential from the root asynchronously, then requeue
+            att.marks["fetch_start"] = self.clock.now_ms()
             rtt = self._backhaul() + self._backhaul()
             self._after(rtt, self._fetch_done, ta, epoch, att, stage, msg, err)
         elif err is None and not att.done:
+            att.marks["ta_out1" if stage == "msg1" else "ta_out3"] = self.clock.now_ms()
             if stage == "msg1":
                 self._send(att, 0.0, "ta2u", ta.region, att.uav.region,
                            self._uav_arrival, att, out)
@@ -314,6 +329,7 @@ class Simulation:
         except AuthError as exc:
             att.req.reason = str(exc)
             return                                   # vehicle will time out
+        att.fetch_ms += self.clock.now_ms() - att.marks.pop("fetch_start")
         self._ta_arrival(att, ta, stage, msg)
 
     # ------------------------------------------------- UAV and vehicle
@@ -337,6 +353,7 @@ class Simulation:
 
     def _uav_done(self, uav, att, out, err):
         if err is None and not att.done:
+            att.marks["u_out"] = self.clock.now_ms()
             self._send(att, 0.0, "u2ta", uav.region, att.ta.region,
                        self._ta_arrival, att, att.ta, "msg3", out)
         elif err is not None:
@@ -352,10 +369,24 @@ class Simulation:
             return
         att.done = True
         ok = att.uav.session_keys.pop(att.sid, None) == sk
-        self.sys.root.observe(att.ta.name, True)
+        self.sys.root.observe(att.ta.name, True, (att.vehicle.home_ta, att.uav.home_ta))
         att.req.delegated = (att.ta.name != att.vehicle.home_ta
                              or att.ta.name != att.uav.home_ta)
+        if ok:
+            att.req.breakdown = self._breakdown(att, self.clock.now_ms() + dt)
         self._after(dt, self._finish, att.req, ok, "" if ok else "session key mismatch")
+
+    def _breakdown(self, att: _Attempt, t_finish: float) -> dict:
+        """T_auth = T_req + T_TA + T_authz + T_UAV + T_resp (+ earlier attempts)."""
+        m = att.marks
+        return {
+            "earlier_attempts": m["start"] - (self.t0 + att.req.t_start),
+            "T_req": m["ta_in1"] - m["start"],
+            "T_TA": (m["ta_out1"] - m["ta_in1"]) + (m["ta_out3"] - m["ta_in3"]) - att.fetch_ms,
+            "T_authz": att.fetch_ms,
+            "T_UAV": m["ta_in3"] - m["ta_out1"],
+            "T_resp": t_finish - m["ta_out3"],
+        }
 
     def _finish(self, req: RequestRecord, ok: bool, reason: str):
         if req.t_end is not None:
@@ -382,6 +413,12 @@ class Simulation:
         jobs = {name: s.jobs for name, s in self.ta_srv.items()}
         loads = np.array([s.busy_ms for s in self.ta_srv.values()], dtype=float)
         jain = float(loads.sum() ** 2 / (len(loads) * (loads ** 2).sum())) if loads.any() else 1.0
+        # normalised load L_i of each RTA (busy share of the active period) and the
+        # load-imbalance metric LI = sqrt(mean((L_i - mean L)^2))
+        util = loads / self.last_ta_activity if self.last_ta_activity > 0 else loads * 0.0
+        parts = [r.breakdown for r in ok if r.breakdown]
+        breakdown = ({k: float(np.mean([b[k] for b in parts])) for k in parts[0]}
+                     if parts else {})
         return {
             "requests": len(self.requests),
             "successes": len(ok),
@@ -393,6 +430,9 @@ class Simulation:
             "ta_jobs": jobs,
             "ta_busy_ms": {n: s.busy_ms for n, s in self.ta_srv.items()},
             "jain_fairness": jain,
+            "ta_utilisation": {n: float(u) for n, u in zip(self.ta_srv, util)},
+            "load_imbalance": float(np.sqrt(np.mean((util - util.mean()) ** 2))),
+            "t_auth_breakdown_ms": breakdown,
             "heartbeats": self.heartbeat_count,
             "lost_messages": self.lost_messages,
             "skipped_busy_vehicle": self.skipped,

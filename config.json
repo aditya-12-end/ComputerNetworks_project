@@ -4,10 +4,6 @@
     "pq_mode": false,
     "dual_record": true,
     "replay_cache": true,
-    "puf_noise_rate": 0.03,
-    "fe_repetition": 7,
-    "puf_max_reads": 3,
-    "puf_enrol_reads": 9,
     "smartcard_max_attempts": 5
   },
   "federation": {
@@ -16,7 +12,9 @@
     "cache_ttl_ms": 60000,
     "heartbeat_interval_ms": 500,
     "heartbeat_misses": 3,
-    "lb_weights": {"load": 0.45, "trust": 0.25, "latency": 0.20, "home": 0.10}
+    "availability_window_ms": 10000,
+    "max_load": 0.9,
+    "lb_weights": {"load": 0.45, "availability": 0.15, "reliability": 0.20, "delay": 0.20}
   },
   "network": {
     "access_local_ms": 10,

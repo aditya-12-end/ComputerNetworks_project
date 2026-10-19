@@ -40,7 +40,7 @@
       "target": "UAV",
       "defence": "ASCON tag verification",
       "blocked": true,
-      "observed": "Msg2 failed ASCON verification (TA not authentic or PUF response not reproducible)"
+      "observed": "Msg2 failed ASCON verification (TA not authentic)"
     },
     {
       "attack": "Modification of Msg3",
@@ -66,9 +66,9 @@
     {
       "attack": "TA impersonation towards the UAV",
       "target": "UAV",
-      "defence": "key needs PID_U (PUF-derived) and C_U",
+      "defence": "key needs PID_U and C_U",
       "blocked": true,
-      "observed": "Msg2 failed ASCON verification (TA not authentic or PUF response not reproducible)"
+      "observed": "Msg2 failed ASCON verification (TA not authentic)"
     },
     {
       "attack": "Random / guessed TID",
@@ -85,18 +85,46 @@
       "observed": "5/5 guesses rejected; card locked"
     },
     {
-      "attack": "UAV cloning (card + password copied, different chip)",
-      "target": "UAV",
-      "defence": "PUF-derived PID_U cannot be reproduced",
+      "attack": "Vehicle impersonation with leaked symmetric credentials (no SK_V)",
+      "target": "TA",
+      "defence": "certificateless signature sigma_V",
       "blocked": true,
-      "observed": "Msg2 failed ASCON verification (TA not authentic or PUF response not reproducible)"
+      "observed": "RTA-1: vehicle certificateless signature is invalid"
     },
     {
-      "attack": "Physical capture / invasive tampering of a UAV",
-      "target": "UAV",
-      "defence": "tamper-evident PUF",
+      "attack": "UAV impersonation with copied symmetric credentials (no SK_U)",
+      "target": "TA",
+      "defence": "certificateless signature sigma_U",
       "blocked": true,
-      "observed": "Msg2 failed ASCON verification (TA not authentic or PUF response not reproducible)"
+      "observed": "RTA-1: UAV certificateless signature is invalid"
+    },
+    {
+      "attack": "Public-key replacement (Type-I certificateless adversary)",
+      "target": "TA",
+      "defence": "X_U and R_U bound into h_U = H1(ID_U || X_U || R_U || P_pub)",
+      "blocked": true,
+      "observed": "RTA-1: UAV certificateless signature is invalid"
+    },
+    {
+      "attack": "Malicious KGC signs with the partial key D_U (Type-II adversary)",
+      "target": "TA",
+      "defence": "full key SK_U = x_U + D_U needs the UAV's secret value",
+      "blocked": true,
+      "observed": "RTA-1: UAV certificateless signature is invalid"
+    },
+    {
+      "attack": "Forged partial private key at enrolment",
+      "target": "vehicle",
+      "defence": "check D*G = R + h*P_pub before use",
+      "blocked": true,
+      "observed": "partial private key failed validation"
+    },
+    {
+      "attack": "Msg1 replayed to a different RTA inside Delta T",
+      "target": "RTA-2",
+      "defence": "ID_TA signed into sigma_V",
+      "blocked": true,
+      "observed": "RTA-2: vehicle certificateless signature is invalid"
     },
     {
       "attack": "Man-in-the-middle: splice Msg3 from another session",
@@ -162,6 +190,6 @@
     "blocked": false,
     "observed": "vehicle locked out: federation refused delegation: unknown vehicle"
   },
-  "blocked": 22,
-  "total": 22
+  "blocked": 26,
+  "total": 26
 }

@@ -10,30 +10,34 @@ HF-SELAP - FILE DEPENDENCIES AND EXECUTION FLOW
         |                    h(), xor(), AeadParams (IV = M^a, AD = M^b, k = M^a xor M^b),
         |                    seal()/open_(), 32-bit timestamps, SimClock, OpMeter
         ^
-  hfselap/puf.py         ->  primitives.py (METER)          ArbiterPUF, FuzzyExtractor
+  hfselap/certificateless.py -> primitives.py (h, METER), cryptography (OpenSSL)
+                             KGC, partial keys, validation, SK = x + D, Q, ECDSA sign/verify
   hfselap/config.py          (no internal dependencies)     Config <- config.json
-  hfselap/messages.py    ->  primitives.py (field sizes)    Msg1..Msg4, inter-TA formats
+  hfselap/messages.py    ->  primitives.py (field sizes)    Msg1..Msg4, signed inputs,
+                                                            inter-TA formats
         ^
-  hfselap/entities.py    ->  primitives, messages, puf, config, ascon
+  hfselap/entities.py    ->  primitives, messages, certificateless, config, ascon
                              VehicleSmartCard, Vehicle (A-1, A-6),
-                             UAVSmartCard, UAV (A-4), AuthError, LoginError
+                             UAVSmartCard, UAV (A-4), session_key, refreshed_tid
         ^
-  hfselap/ta.py          ->  entities (AuthError), messages, primitives, puf, config
-                             RegionalTA (VR-2, UR-2/3, A-2, A-3, A-5), NeedRecord
+  hfselap/ta.py          ->  entities, messages, primitives, certificateless, config
+                             RegionalTA (VR-2, UR-2, A-2, A-3, A-5), NeedRecord
         ^
-  hfselap/federation.py  ->  ta (record types), messages, primitives, ascon, entities
-                             RootTA, SecureLink (ASCON inter-TA channel)
+  hfselap/federation.py  ->  ta (record types), messages, primitives, ascon,
+                             certificateless, entities
+                             RootTA (+ KGC, trust update), SecureLink
         ^
   hfselap/loadbalancer.py -> config (and RootTA / RegionalTA objects at run time)
                              HealthMonitor, LoadBalancer
         ^
   hfselap/system.py      ->  config, entities, federation, loadbalancer, messages,
-                             primitives, puf, ta
+                             primitives, certificateless, ta
                              HFSELAP facade (the class every caller uses)
         ^
   hfselap/channel.py     ->  ascon           (data protection after authentication)
   hfselap/simulation.py  ->  system, entities, loadbalancer, messages, primitives, ta
-  hfselap/attacks.py     ->  system, config, entities, federation, messages, primitives, puf
+  hfselap/attacks.py     ->  system, config, entities, federation, messages, primitives,
+                             certificateless
 
   Top-level users:
   demo.py                 -> hfselap (system, attacks, channel), config.json
@@ -54,7 +58,7 @@ HF-SELAP - FILE DEPENDENCIES AND EXECUTION FLOW
 --------------------------------------------------------
 
   HFSELAP(cfg)                      system.py
-    -> RootTA(cfg, clock)           federation.py   root key, empty registries
+    -> RootTA(cfg, clock)           federation.py   root key, KGC (s, P_pub = sG), registries
     -> HealthMonitor, LoadBalancer  loadbalancer.py
 
   HFSELAP.add_ta("RTA-1", region)
@@ -64,44 +68,53 @@ HF-SELAP - FILE DEPENDENCIES AND EXECUTION FLOW
   HFSELAP.trust(a, b, value)        -> RootTA.set_trust      inter-TA trust matrix
 
   HFSELAP.register_vehicle(name, region)              (secure enrolment channel)
-    VR-1  vehicle: N_VR1, PID_V = h(ID_V || N_VR1)
-    VR-2  RegionalTA.register_vehicle(PID_V): TID_V, N_VR2,
-          M_VR1 = PID_V xor h(N_VR2 || k_TA), record <TID_o=None, TID_c, N_VR2, M_VR1>
+    VR-1  vehicle: N_VR1, PID_V = h(ID_V || N_VR1), secret value x_V, X_V = x_V*G
+    VR-2  RegionalTA.register_vehicle(PID_V, X_V): TID_V, N_VR2,
+          M_VR1 = PID_V xor h(N_VR2 || k_TA)
+          -> RootTA.issue_partial_key (KGC): R_V, D_V = r_V + h_V*s
+          Q_V = X_V + R_V + h_V*P_pub; record <TID_o=None, TID_c, N_VR2, M_VR1, Q_V>
           -> RootTA.deposit_vehicle  (sealed escrow copy + TID directory entry)
-    VR-3  VehicleSmartCard.issue: M_VR2, ASCON-protected (N_VR1 || N_VR2)
+    VR-3  vehicle: check D_V*G = R_V + h_V*P_pub, SK_V = x_V + D_V
+          VehicleSmartCard.issue: M_VR2, ASCON-protected (N_VR1 || N_VR2 || SK_V)
 
   HFSELAP.register_uav(name, region)
-    UR-1/2  RegionalTA.uav_challenge -> fresh challenge C_U
-    UR-3    UAV: RS = majority of 9 PUF reads; TA: (K_U, H_U) = Gen(RS),
-            PID_U = h(ID_U || K_U), M_UR1 = PID_U xor h(ID_U || C_U || k_TA)
-            -> RootTA.deposit_uav
-    UR-4    UAVSmartCard.issue: M_UR2, ASCON-protected (C_U || H_U)
+    UR-1  RegionalTA.check_uav_identity; UAV: N_UR1, PID_U = h(ID_U || N_UR1), x_U, X_U
+    UR-2  RegionalTA.register_uav: C_U, M_UR1 = PID_U xor h(ID_U || C_U || k_TA),
+          partial key (R_U, D_U) from the KGC, Q_U -> RootTA.deposit_uav
+    UR-3  UAV: validate D_U, SK_U = x_U + D_U;
+          UAVSmartCard.issue: M_UR2, ASCON-protected (N_UR1 || C_U || SK_U)
 
 
 3. ONE AUTHENTICATION (HFSELAP.authenticate, system.py)
 -------------------------------------------------------
 
   login            Vehicle.login / UAV.login -> smart card decrypts the credentials
-  select TA        HFSELAP.select_ta -> LoadBalancer.select (health, trust, load,
-                   latency, home bonus)
-  A-1  Vehicle.start(ID_U)            -> Msg1 {TID, C_A1, Tag_A1, T1}  (544 bits)
+                   and the private key SK
+  select TA        HFSELAP.select_ta -> LoadBalancer.select: eligible RTAs (up, trusted,
+                   L_i <= L_max), Score = w1(1-L) + w2 A + w3 R + w4 D_score, argmax
+  A-1  Vehicle.start(ID_U, ID_TA)     sigma_V = Sign(SK_V, TID||N_A1||ID_U||ID_TA||T1)
+                                      -> Msg1 {TID, C_A1, Tag_A1, T1}  (1056 bits)
        Channel tap (attacks may drop / modify / replay here)
   A-2  RegionalTA.handle_msg1         freshness, replay cache, TID lookup in
-       A-3                            <TID_o, TID_c>, revocation check, decrypt,
-                                      look up UAV record, build Msg2 (672 bits)
+       A-3                            <TID_o, TID_c>, RevCheck, decrypt, Verify sigma_V,
+                                      look up UAV record, TID_new = h(TID||N_A2||T1),
+                                      build Msg2 (800 bits)
        If a record is missing: NeedRecord -> RegionalTA.fetch -> RootTA.fetch
        (trust + revocation checked; record sent over the ASCON inter-TA link and
        cached), then the handler is simply called again.
-  A-4  UAV.respond                    PUF read + fuzzy-extractor Rep (re-read up
-                                      to 3 times), decrypt, SK_UV, SKV, Msg3 (416 bits)
-  A-5  RegionalTA.handle_msg3         decrypt, M_A9, TID_new, dual-record update
+  A-4  UAV.respond                    PID_U = h(ID_U||N_UR1), decrypt, SK_HF, SKV,
+                                      sigma_U = Sign(SK_U, ...), Msg3 (928 bits)
+  A-5  RegionalTA.handle_msg3         decrypt, Verify sigma_U, M_A9, dual-record update
                                       (TID_o <- TID, TID_c <- TID_new), Msg4 (800 bits);
                                       queue the TID update in the outbox
        RegionalTA.flush_federation    -> RootTA.sync_tid (asynchronous): update escrow
                                       + directory, push to the home RTA and to RTAs
                                       holding cached copies; stale updates ignored
-  A-6  Vehicle.finish                 decrypt Msg4, SK_VU, check SKV, adopt TID_new
-  result  AuthResult(ok, sk_vehicle == sk_uav, bits per message, serving TA, ...)
+  A-6  Vehicle.finish                 decrypt Msg4, SK_VU, check SKV, compute and adopt
+                                      TID_new = h(TID || N_A2 || T1)
+  result  AuthResult(ok, sk_vehicle == sk_uav, bits per message, serving TA, ...);
+          RootTA.observe updates reliability R_i and inter-TA trust
+          (X_new = alpha X_old + (1 - alpha) S)
   after   SecureDataChannel(SK) protects emergency data (channel.py)
 
 
@@ -116,10 +129,11 @@ HF-SELAP - FILE DEPENDENCIES AND EXECUTION FLOW
                 message to every operational RTA (apply_revocation purges indexes
                 and caches); offline RTAs catch up through resync.
   Recovery      HFSELAP.reenrol_vehicle / reenrol_uav: revoke the old handle, then
-                register again (new TID/N_VR2, or a new PUF challenge and helper data).
+                register again (new TID/N_VR2 or C_U, and a new key pair).
                 No other entity is touched, so there is no network reset.
   PQ mode       config protocol.pq_mode = true -> AeadParams uses Ascon-80pq with a
-                160-bit key; messages and storage keep the same size.
+                160-bit key; messages and storage keep the same size. (The
+                certificateless ECDSA layer is unchanged and is not quantum-safe.)
 
 
 5. SIMULATION FLOW (simulation.py, used by experiments E5-E7)
@@ -135,7 +149,9 @@ HF-SELAP - FILE DEPENDENCIES AND EXECUTION FLOW
      "busy" reply on overflow) -> _ta_serve runs handle_msg1 for real, and its
      measured CPU time becomes the service time -> UAV queue -> UAV.respond
      -> TA queue -> handle_msg3 -> flush_federation (CPU time accounted separately)
-     -> Vehicle.finish -> request finished.
+     -> Vehicle.finish -> request finished; its delay is split into
+     T_auth = T_req + T_TA + T_authz + T_UAV + T_resp, and summary() reports the
+     load-imbalance metric LI over the RTA utilisations.
   A timeout (1.5 s) triggers a retry on another RTA (up to 3 attempts).
   Heartbeats every 500 ms; an RTA is declared down after 3 missed beats, or
   earlier when a timeout coincides with a missed beat.
@@ -149,7 +165,7 @@ HF-SELAP - FILE DEPENDENCIES AND EXECUTION FLOW
      E1 exp_primitives  -> results/e1_primitives.json
      E2 exp_cost        -> results/e2_cost.json            fig_cost_per_entity.png
      E3 exp_overhead    -> results/e3_overhead.json        fig_comm_overhead.png
-     E8 exp_puf         -> results/e8_puf.json             fig_puf_reliability.png, fig_puf_hamming.png
+     E8 exp_cl          -> results/e8_cl.json              fig_cl_operations.png, fig_cl_composition.png
      E9 exp_revocation  -> results/e9_revocation.json
      E10 exp_security   -> results/e10_security.json       (uses hfselap/attacks.py)
      E6 exp_fault       -> results/e6_fault.json           fig_fault_success.png, fig_fault_latency.png

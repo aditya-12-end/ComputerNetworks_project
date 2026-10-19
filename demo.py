@@ -1,15 +1,15 @@
 """Guided demonstration of HF-SELAP (run: python demo.py).
 
 Walks through every block of the proposed architecture: federation set-up,
-registration, intra- and cross-region authentication, protected emergency
-data, an attack, Regional-TA failure with fail-over, revocation, recovery and
-the post-quantum mode.  Session keys are never printed.
+certificateless registration, intra- and cross-region authentication,
+protected emergency data, attacks, Regional-TA failure with fail-over,
+revocation, recovery and the post-quantum mode.  Keys are never printed.
 """
 
 from __future__ import annotations
 
 from hfselap import HFSELAP, Config
-from hfselap.attacks import replay_msg1_within_window
+from hfselap.attacks import replay_msg1_within_window, uav_signature_forgery
 from hfselap.channel import ChannelError, SecureDataChannel
 
 
@@ -35,13 +35,15 @@ def main():
     s.trust("RTA-1", "RTA-2", 0.9)
     print("  RTA-1 (Region-A) and RTA-2 (Region-B) linked to the Root TA, mutual trust 0.9")
 
-    banner("2. Registration over the secure enrolment channel")
+    banner("2. Certificateless registration over the secure enrolment channel")
     car = s.register_vehicle("Ambulance-17", "Region-A", password=b"amb-17-pass")
     van = s.register_vehicle("Rescue-Van-4", "Region-A", password=b"van-4-pass")
     uav_a = s.register_uav("UAV-Alpha", "Region-A", password=b"alpha-op")
     uav_b = s.register_uav("UAV-Bravo", "Region-B", password=b"bravo-op")
     for e in (car, van, uav_a, uav_b):
         e.login()
+    print("  each entity: secret value x, partial key D from the Root TA's KGC (validated),")
+    print("  full private key SK = x + D sealed in its smart card; Q = X + R + h*P_pub at the RTA")
     print(f"  vehicle smart card: {car.card.storage_bits} bits, "
           f"UAV smart card: {uav_a.card.storage_bits} bits")
 
@@ -63,10 +65,10 @@ def main():
     except ChannelError as exc:
         print(f"  replayed packet rejected: {exc}")
 
-    banner("5. Attack example")
-    outcome = replay_msg1_within_window()
-    print(f"  {outcome.attack}: {'BLOCKED' if outcome.blocked else 'NOT BLOCKED'} "
-          f"({outcome.observed})")
+    banner("5. Attack examples")
+    for outcome in (replay_msg1_within_window(), uav_signature_forgery()):
+        print(f"  {outcome.attack}: {'BLOCKED' if outcome.blocked else 'NOT BLOCKED'}")
+        print(f"      ({outcome.observed})")
 
     banner("6. Fault tolerance: RTA-1 crashes")
     s.root.tas["RTA-1"].fail()
@@ -98,7 +100,7 @@ def main():
 
     banner("Federation traffic (inter-TA messages)")
     for name, (count, bits) in sorted(s.root.traffic.items()):
-        print(f"  {name:16s} {count:3d} messages {bits:6d} bits")
+        print(f"  {name:20s} {count:3d} messages {bits:6d} bits")
 
 
 if __name__ == "__main__":

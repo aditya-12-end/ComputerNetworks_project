@@ -45,31 +45,32 @@ def architecture():
     ax.axis("off")
 
     box(ax, 0.20, 0.855, 0.60, 0.125, "Federation / Root Trusted Authority",
-        ["inter-TA trust matrix + RTA reliability scores",
-         "sealed credential escrow + federated TID directory",
+        ["KGC: master key s, P_pub = sG, partial private keys D_E",
+         "inter-TA trust (alpha-update), sealed escrow, TID directory",
          "revocation registry (versioned)  |  audit log"], BLUE)
-    box(ax, 0.36, 0.735, 0.28, 0.085, "Load balancer + health monitor",
-        ["score = load, trust, latency, home", "heartbeats, fast fail-over"], VIOLET, size=6.8)
+    box(ax, 0.35, 0.735, 0.30, 0.085, "Load balancer + health monitor",
+        ["Score = w1(1-L) + w2 A + w3 R + w4 D", "heartbeats, fast fail-over"], VIOLET,
+        title_size=8.0, size=6.6)
     box(ax, 0.03, 0.585, 0.30, 0.13, "Regional TA-1 (Region A)",
-        ["runs SELAP steps A-2, A-3, A-5", "dual TID records <TID_o, TID_c>",
-         "replay cache, revocation check", "delegated credential cache"], BLUE, size=6.8)
+        ["A-2, A-3, A-5; verifies σ_V and σ_U", "dual TID records <TID_o, TID_c>",
+         "replay cache, RevCheck(ID)", "delegated credential cache"], BLUE, size=6.8)
     box(ax, 0.67, 0.585, 0.30, 0.13, "Regional TA-2 (Region B)",
-        ["runs SELAP steps A-2, A-3, A-5", "dual TID records <TID_o, TID_c>",
-         "replay cache, revocation check", "delegated credential cache"], BLUE, size=6.8)
+        ["A-2, A-3, A-5; verifies σ_V and σ_U", "dual TID records <TID_o, TID_c>",
+         "replay cache, RevCheck(ID)", "delegated credential cache"], BLUE, size=6.8)
     box(ax, 0.12, 0.405, 0.25, 0.12, "UAV cluster A",
-        ["arbiter PUF + fuzzy extractor", "smart card (C_U, H_U)", "SELAP step A-4"], ORANGE,
-        size=6.8)
+        ["CL private key SK_U = x_U + D_U", "smart card (N_UR1, C_U, SK_U)",
+         "step A-4, signs σ_U"], ORANGE, size=6.8)
     box(ax, 0.63, 0.405, 0.25, 0.12, "UAV cluster B",
-        ["arbiter PUF + fuzzy extractor", "smart card (C_U, H_U)", "SELAP step A-4"], ORANGE,
-        size=6.8)
+        ["CL private key SK_U = x_U + D_U", "smart card (N_UR1, C_U, SK_U)",
+         "step A-4, signs σ_U"], ORANGE, size=6.8)
     box(ax, 0.03, 0.255, 0.94, 0.10, "Vehicles / On-Board Units",
-        ["smart card login (ID, PW)  |  SELAP steps A-1 and A-6",
+        ["smart card login (ID, PW)  |  steps A-1 and A-6  |  CL key SK_V = x_V + D_V, signs σ_V",
          "emergency data over the ASCON session channel"], AQUA)
 
     arrow(ax, (0.30, 0.715), (0.33, 0.855), "secure inter-TA link", BLUE, both=True, lx=-0.07)
     arrow(ax, (0.70, 0.715), (0.67, 0.855), "fetch / sync / revoke", BLUE, both=True, lx=0.07)
-    arrow(ax, (0.36, 0.75), (0.33, 0.70), "", VIOLET, both=False)
-    arrow(ax, (0.64, 0.75), (0.67, 0.70), "", VIOLET, both=False)
+    arrow(ax, (0.35, 0.75), (0.33, 0.70), "", VIOLET, both=False)
+    arrow(ax, (0.65, 0.75), (0.67, 0.70), "", VIOLET, both=False)
     arrow(ax, (0.245, 0.585), (0.245, 0.525), "Msg2 / Msg3", ORANGE, both=True)
     arrow(ax, (0.755, 0.585), (0.755, 0.525), "Msg2 / Msg3", ORANGE, both=True)
     arrow(ax, (0.06, 0.355), (0.06, 0.585), "", AQUA, both=True)
@@ -84,7 +85,7 @@ def architecture():
             color=INK2, ha="center", va="center")
 
     mods = [("ASCON-128 AEAD", "confidentiality + integrity"),
-            ("PUF + fuzzy extractor", "UAV hardware identity"),
+            ("Certificateless auth.", "SK = x + D, no certificates"),
             ("Identity / session update", "TID rotation, desync safe"),
             ("Revocation registry", "federation-wide reject"),
             ("Recovery / re-enrolment", "no network reset"),
@@ -129,30 +130,32 @@ def message_flow():
         ax.text((cols[a] + cols[b]) / 2, y + 0.011, label, ha="center", fontsize=7.0, color=INK,
                 bbox=dict(boxstyle="round,pad=0.12", facecolor="white", edgecolor="none"))
 
-    note(0.015, 0.915, ["A-1: PID = h(ID || N_VR1)", "M_A1 = h(PID || N_VR2 || T1)",
-                       "(C_A1, Tag_A1) = Enc(N_A1 || ID_U)"], ha="left")
-    msg("Vehicle V_t", "Serving RTA", 0.835, "Msg1 = {TID, C_A1, Tag_A1, T1}   544 bits")
-    note(0.42, 0.815, ["A-2: check T1, replay, revocation", "lookup TID in <TID_o, TID_c>",
-                       "decrypt -> N_A1, ID_U"])
-    msg("Serving RTA", "Root TA", 0.735, "fetch / record (only on cache miss)", style="--")
-    note(0.42, 0.715, ["A-3: M_A3 = h(PID_V || N_A2 || T1)", "M_A4 = h(PID_U || C_U || T2)",
-                       "Enc(N_A1 || N_A2 || M_A3)"])
-    msg("Serving RTA", "UAV U_k", 0.635, "Msg2 = {C_A3, Tag_A3, T2}   672 bits")
-    note(0.70, 0.615, ["A-4: K_U = Rep(PUF(C_U), H_U)", "PID_U = h(ID_U || K_U), decrypt",
-                       "SK = h(N_A1 || M_A3 || M_A6)", "SKV = SK^a xor SK^b"])
-    msg("UAV U_k", "Serving RTA", 0.51, "Msg3 = {C_A5, Tag_A5, T3}   416 bits")
-    note(0.42, 0.49, ["A-5: decrypt -> N_A3, SKV", "M_A9 = h(PID_U || N_A3 || T3)",
+    note(0.015, 0.915, ["A-1: M_A1 = h(PID_V || N_VR2 || T1)",
+                       "σ_V = Sign(SK_V, TID || N_A1 || ID_U || ID_TA || T1)",
+                       "(C_A1, Tag_A1) = Enc(N_A1 || ID_U || σ_V)"], ha="left")
+    msg("Vehicle V_t", "Serving RTA", 0.822, "Msg1 = {TID, C_A1, Tag_A1, T1}   1056 bits")
+    note(0.42, 0.80, ["A-2: check T1, replay, RevCheck", "lookup TID in <TID_o, TID_c>",
+                       "decrypt; Verify(Q_V, σ_V) = 1"])
+    msg("Serving RTA", "Root TA", 0.712, "fetch / record (only on cache miss)", style="--")
+    note(0.42, 0.69, ["A-3: M_A3 = h(PID_V || N_A2 || T1)", "TID_new = h(TID || N_A2 || T1)",
+                       "Enc(N_A1 || N_A2 || M_A3 || ID_TA)"])
+    msg("Serving RTA", "UAV U_k", 0.602, "Msg2 = {C_A3, Tag_A3, T2}   800 bits")
+    note(0.70, 0.58, ["A-4: PID_U = h(ID_U || N_UR1), decrypt",
+                       "SK = h(N_A1||N_A3||M_A3||M_A6||ID_TA||ID_U)",
+                       "SKV = SK^a xor SK^b", "σ_U = Sign(SK_U, ... || SKV || T3)"])
+    msg("UAV U_k", "Serving RTA", 0.47, "Msg3 = {C_A5, Tag_A5, T3}   928 bits")
+    note(0.42, 0.45, ["A-5: decrypt; Verify(Q_U, σ_U) = 1", "M_A9 = h(PID_U || N_A3 || T3)",
                       "TID_o <- TID, TID_c <- TID_new"])
-    msg("Serving RTA", "Vehicle V_t", 0.40, "Msg4 = {C_A7, Tag_A7, T4}   800 bits")
-    msg("Serving RTA", "Root TA", 0.36, "TID sync (asynchronous write-through)", style="--")
-    note(0.015, 0.33, ["A-6: decrypt -> N_A2, TID_new, M_A9, SKV",
-                      "SK = h(N_A1 || h(PID || N_A2 || T1) || M_A9)",
-                      "verify SKV, store SK, adopt TID_new"], ha="left")
-    ax.add_patch(FancyArrowPatch((cols["Vehicle V_t"], 0.20), (cols["UAV U_k"], 0.20),
+    msg("Serving RTA", "Vehicle V_t", 0.362, "Msg4 = {C_A7, Tag_A7, T4}   800 bits")
+    msg("Serving RTA", "Root TA", 0.325, "TID sync (asynchronous write-through)", style="--")
+    note(0.015, 0.30, ["A-6: decrypt -> N_A2, N_A3, M_A9, SKV",
+                      "SK = h(N_A1||N_A3||h(PID_V||N_A2||T1)||M_A9||ID_TA||ID_U)",
+                      "verify SKV; TID_new = h(TID || N_A2 || T1)"], ha="left")
+    ax.add_patch(FancyArrowPatch((cols["Vehicle V_t"], 0.19), (cols["UAV U_k"], 0.19),
                                  arrowstyle="<|-|>", mutation_scale=10, linewidth=1.4, color=AQUA))
-    ax.text(0.41, 0.212, "emergency data protected by ASCON under SK", ha="center", fontsize=7.2,
+    ax.text(0.41, 0.202, "emergency data protected by ASCON under SK", ha="center", fontsize=7.2,
             color=INK, bbox=dict(boxstyle="round,pad=0.12", facecolor="white", edgecolor="none"))
-    ax.text(0.5, 0.135, "Air interface: 2432 bits per authentication.  Dashed arrows are wired "
+    ax.text(0.5, 0.135, "Air interface: 3584 bits per authentication.  Dashed arrows are wired "
             "backhaul traffic added by the federation layer.", ha="center", fontsize=7.0,
             color=INK2, style="italic")
     path = OUT / "fig_message_flow.png"

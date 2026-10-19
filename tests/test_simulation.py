@@ -34,6 +34,13 @@ class SimulationTests(unittest.TestCase):
         summary = sim.summary()
         self.assertEqual(summary["success_rate"], 1.0)
         self.assertGreater(summary["mean_latency_ms"], 0)
+        # T_auth = T_req + T_TA + T_authz + T_UAV + T_resp (+ earlier attempts)
+        for r in sim.requests:
+            self.assertAlmostEqual(sum(r.breakdown.values()), r.t_end - r.t_start, places=6)
+        parts = summary["t_auth_breakdown_ms"]
+        self.assertGreater(parts["T_req"], 0)
+        self.assertGreater(parts["T_UAV"], 0)
+        self.assertGreaterEqual(summary["load_imbalance"], 0.0)
 
     def test_failover_after_ta_failure(self):
         s, vs, us = build(2)

@@ -48,7 +48,36 @@ class FederationTests(unittest.TestCase):
         s.root.tas["RTA-1"].queue_len = 0
         self.assertEqual(s.select_ta(s.vehicles["V1"]).name, "RTA-1")
 
-    def test_uav_reenrolment_with_new_challenge(self):
+    def test_load_above_max_is_bypassed(self):
+        s = world()
+        rta1 = s.root.tas["RTA-1"]
+        cap = s.cfg.network.ta_queue_capacity
+        rta1.queue_len = int(cap * s.cfg.federation.max_load) + 1    # L_1 > L_max
+        self.assertEqual(s.select_ta(s.vehicles["V1"]).name, "RTA-2")
+        s.root.tas["RTA-2"].queue_len = cap                          # both overloaded
+        self.assertEqual(s.select_ta(s.vehicles["V1"]).name, "RTA-1")
+
+    def test_trust_update_rule(self):
+        s = world()
+        alpha = s.cfg.federation.trust_history_weight
+        before = s.root.trust[("RTA-2", "RTA-1")]
+        r = s.authenticate(s.vehicles["V1"], s.uavs["U2"], ta="RTA-1")   # U2 is homed at RTA-2
+        self.assertTrue(r.ok, r.reason)
+        self.assertAlmostEqual(s.root.trust[("RTA-2", "RTA-1")], alpha * before + (1 - alpha))
+        s.root.observe("RTA-1", False, ("RTA-2",))
+        self.assertLess(s.root.trust[("RTA-2", "RTA-1")], alpha * before + (1 - alpha))
+
+    def test_heartbeat_availability(self):
+        s = world()
+        s.monitor.mode = "heartbeat"
+        for t in range(0, 10_001, 500):
+            s.monitor.beat("RTA-1", float(t))
+        self.assertEqual(s.monitor.availability("RTA-1", 10_000.0), 1.0)
+        for t in range(14_000, 20_001, 500):                      # 4 s without heartbeats
+            s.monitor.beat("RTA-1", float(t))
+        self.assertTrue(0.55 < s.monitor.availability("RTA-1", 20_000.0) < 0.75)
+
+    def test_uav_reenrolment_with_new_key_pair(self):
         s = world()
         u = s.uavs["U1"]
         new_u = s.reenrol_uav(u)

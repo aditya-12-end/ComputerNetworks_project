@@ -1,10 +1,10 @@
 """Shared cryptographic helpers, simulated clock and operation metering.
 
-Every protocol module calls the helpers in this file instead of hashlib /
-ascon directly, so that the number of hash, ASCON, PUF and fuzzy-extractor
-operations executed by each party can be counted (``OpMeter``).  Those counts
-are what Section 8 of the report compares with the analytical cost model of
-the base SELAP paper (e.g. vehicle = 5 Th + 2 Ta).
+Every protocol module calls the helpers in this file (and the signature
+helpers of ``certificateless.py``) instead of hashlib / ascon directly, so that
+the number of hash, ASCON, signing and verification operations executed by each
+party can be counted (``OpMeter``).  The report compares those counts with the
+analytical cost model of the base SELAP paper (e.g. vehicle = 5 Th + 2 Ta).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from collections import defaultdict
 
 from . import ascon
 
-NONCE = 16          # 128-bit nonces, identities, PUF challenges, TIDs
+NONCE = 16          # 128-bit nonces, identities, credentials, TIDs
 HASH = 32           # 256-bit SHA-256 output
 TS = 4              # 32-bit timestamps
 TAG = ascon.TAG_BYTES

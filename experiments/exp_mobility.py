@@ -12,7 +12,7 @@ Model
   assumption of this study): p_vehicle(v) = 0.5 % + 0.04 % per km/h on every
   vehicle hop; UAV hops lose 0.5 %.  Backhaul is lossless.
 
-Deployments: SELAP (one TA in Region-B), HF-SELAP (3 RTAs, load balancing), and
+Deployments: a single TA in Region-B, HF-SELAP (3 RTAs, load balancing), and
 HF-SELAP without dual TID records (desynchronisation ablation).
 """
 
@@ -26,7 +26,7 @@ from hfselap.simulation import Simulation
 
 CORRIDOR_KM, CELL_KM = 30, 1
 REGION_KM = 10
-CONFIGS = [("SELAP (single TA)", 1, True),
+CONFIGS = [("Single TA (no federation)", 1, True),
            ("HF-SELAP (3 RTAs)", 3, True),
            ("HF-SELAP without dual TID records", 3, False)]
 DEADLINE_MS = 1000.0

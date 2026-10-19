@@ -74,10 +74,11 @@ def main():
     storage = {
         "Vehicle smart card": v.card.storage_bits,
         "UAV smart card": u_local.card.storage_bits,
-        "Regional TA, per own vehicle <TID_o,TID_c,N_VR2,M_VR1>":
+        "Regional TA, per own vehicle <TID_o,TID_c,N_VR2,M_VR1,Q_V>":
             s.root.tas["RTA-1"].storage_bits_per_vehicle,
-        "Regional TA, per own UAV <ID_U,M_UR1,C_U>": s.root.tas["RTA-1"].storage_bits_per_uav,
-        "Regional TA, per cached foreign vehicle <TID_o,TID_c,N_VR2,PID_V>": 8 * (16 + 16 + 16 + 32),
+        "Regional TA, per own UAV <ID_U,M_UR1,C_U,Q_U>": s.root.tas["RTA-1"].storage_bits_per_uav,
+        "Regional TA, per cached foreign vehicle <TID_o,TID_c,N_VR2,PID_V,Q_V>":
+            8 * (16 + 16 + 16 + 32 + 33),
         "Root TA escrow, per vehicle (sealed)": s.root.escrow_bits(v.handle),
         "Root TA escrow, per UAV (sealed)": s.root.escrow_bits(u_local.handle),
     }

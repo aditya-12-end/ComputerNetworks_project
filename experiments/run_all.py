@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import common                                                     # noqa: E402
 import exp_cost, exp_fault, exp_mobility, exp_overhead, exp_primitives  # noqa: E402,E401
-import exp_puf, exp_revocation, exp_scalability, exp_security      # noqa: E402,E401
+import exp_cl, exp_revocation, exp_scalability, exp_security       # noqa: E402,E401
 
 
 def main():
@@ -36,13 +36,14 @@ def main():
         (("E1",), "E1 primitives", lambda: exp_primitives.main(300 if q else 2000)),
         (("E2",), "E2 computation cost", lambda: exp_cost.main(80 if q else 400)),
         (("E3", "E4"), "E3/E4 communication and storage", exp_overhead.main),
-        (("E8",), "E8 PUF and fuzzy extractor", lambda: exp_puf.main(400 if q else 2000)),
+        (("E8",), "E8 certificateless key management", lambda: exp_cl.main(
+            200 if q else 1000, 60 if q else 300)),
         (("E9",), "E9 revocation and recovery",
          lambda: exp_revocation.main((100, 300) if q else (100, 500, 1000, 2000))),
         (("E10",), "E10 security scenarios", exp_security.main),
         (("E6",), "E6 fault tolerance", exp_fault.main),
-        (("E5",), "E5 scalability (slowest step, about 15 min)", lambda: exp_scalability.main(
-            rates=(500, 1500, 3000) if q else (500, 1000, 1500, 2000, 2500, 3000),
+        (("E5",), "E5 scalability (slowest step, about 25 min)", lambda: exp_scalability.main(
+            rates=(300, 1200, 2100) if q else (300, 600, 900, 1200, 1500, 1800, 2100),
             vehicles_per_region=600 if q else 1500, repeats=1 if q else 2)),
         (("E7",), "E7 mobility (about 8 min)", lambda: exp_mobility.main(
             speeds=(20, 80, 140) if q else (20, 40, 60, 80, 100, 120, 140),

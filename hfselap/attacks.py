@@ -9,16 +9,15 @@ that the unit tests check.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 
-import numpy as np
-
+from . import certificateless as cl
 from .config import Config
-from .entities import AuthError, LoginError, UAV
+from .entities import AuthError, LoginError
 from .federation import LinkError
-from .messages import INTER_HEADER, REVOKE, ProtocolMessage
-from .primitives import rand
-from .puf import ArbiterPUF
+from .messages import CT_LEN, INTER_HEADER, REVOKE, ProtocolMessage, vehicle_proof_input
+from .primitives import AeadParams, encode_ts, h, rand, seal
 from .system import HFSELAP
 
 
@@ -117,7 +116,6 @@ def timestamp_forgery() -> AttackOutcome:
     s.authenticate(s.vehicles["V1"], s.uavs["U1"], tap=_record(cap))
     s.clock.advance(5 * s.cfg.protocol.delta_t_ms)
     old = ProtocolMessage.from_bytes(1, cap["msg1"])
-    from .primitives import encode_ts
     forged = ProtocolMessage(1, old.c, old.tag, encode_ts(s.clock.now_ms()), old.tid)
     try:
         s.root.tas["RTA-1"].handle_msg1(forged, 97)
@@ -131,9 +129,8 @@ def vehicle_impersonation() -> AttackOutcome:
     s = world()
     cap = {}
     s.authenticate(s.vehicles["V1"], s.uavs["U1"], tap=_record(cap))
-    from .primitives import encode_ts
     real_tid = s.vehicles["V1"].card.tid                   # observed in a previous Msg1
-    forged = ProtocolMessage(1, rand(32), rand(16), encode_ts(s.clock.now_ms()), real_tid)
+    forged = ProtocolMessage(1, rand(CT_LEN[1]), rand(16), encode_ts(s.clock.now_ms()), real_tid)
     try:
         s.root.tas["RTA-1"].handle_msg1(forged, 96)
         return AttackOutcome("Vehicle impersonation", "TA", "PID_V/N_VR2-bound key", False, "accepted")
@@ -145,14 +142,13 @@ def vehicle_impersonation() -> AttackOutcome:
 def ta_impersonation() -> AttackOutcome:
     s = world()
     u = s.uavs["U1"]
-    from .primitives import encode_ts
-    forged = ProtocolMessage(2, rand(64), rand(16), encode_ts(s.clock.now_ms()))
+    forged = ProtocolMessage(2, rand(CT_LEN[2]), rand(16), encode_ts(s.clock.now_ms()))
     try:
         u.respond(forged, 95)
         return AttackOutcome("TA impersonation towards the UAV", "UAV", "PID_U/C_U-bound key", False, "accepted")
     except AuthError as e:
         return AttackOutcome("TA impersonation towards the UAV", "UAV",
-                             "key needs PID_U (PUF-derived) and C_U", True, str(e))
+                             "key needs PID_U and C_U", True, str(e))
 
 
 def stolen_smart_card() -> AttackOutcome:
@@ -177,25 +173,117 @@ def stolen_smart_card() -> AttackOutcome:
                          f"{failures}/{len(guesses)} guesses rejected; card locked" if ok else "bypassed")
 
 
-def uav_clone() -> AttackOutcome:
+def vehicle_signature_forgery() -> AttackOutcome:
+    """The adversary holds the vehicle's symmetric credentials (PID_V, N_VR2, TID_V),
+    e.g. leaked from a compromised TA database, but not its private key SK_V."""
     s = world()
-    u = s.uavs["U1"]
-    clone = UAV(u.id_u, u.pw, u.card, ArbiterPUF(u.puf.n_bits, s.cfg.protocol.puf_noise_rate,
-                                                 np.random.default_rng(123)),
-                u.fe, s.clock, s.cfg.protocol, "U1-clone", u.region)
-    clone.home_ta, clone.handle = u.home_ta, u.handle
-    r = s.authenticate(s.vehicles["V1"], clone)
-    return AttackOutcome("UAV cloning (card + password copied, different chip)", "UAV",
-                         "PUF-derived PID_U cannot be reproduced", not r.ok, r.reason or "accepted")
+    v, u, ta = s.vehicles["V1"], s.uavs["U1"], s.root.tas["RTA-1"]
+    n_vr1, n_vr2 = v._creds
+    pid = h(v.id_v, n_vr1)
+    t1 = encode_ts(s.clock.now_ms())
+    n_a1 = rand()
+    fake_key = cl.signer(cl.random_scalar().to_bytes(32, "big"))
+    sigma = cl.sign(fake_key, vehicle_proof_input(v.card.tid, n_a1, u.id_u, ta.ident, t1))
+    c, tag = seal(AeadParams(h(pid, n_vr2, t1)), n_a1 + u.id_u + sigma)
+    try:
+        ta.handle_msg1(ProtocolMessage(1, c, tag, t1, v.card.tid), 92)
+        return AttackOutcome("Vehicle impersonation with leaked symmetric credentials",
+                             "TA", "certificateless signature", False, "accepted")
+    except AuthError as e:
+        return AttackOutcome("Vehicle impersonation with leaked symmetric credentials "
+                             "(no SK_V)", "TA", "certificateless signature sigma_V", True, str(e))
 
 
-def uav_physical_tamper() -> AttackOutcome:
+def uav_signature_forgery() -> AttackOutcome:
+    """A rogue UAV copies the genuine UAV's symmetric credentials (N_UR1, C_U) but signs
+    with a key of its own, because SK_U never leaves the genuine UAV's smart card."""
     s = world()
     u = s.uavs["U1"]
-    u.puf.tamper()
-    r = s.authenticate(s.vehicles["V1"], u)
-    return AttackOutcome("Physical capture / invasive tampering of a UAV", "UAV",
-                         "tamper-evident PUF", not r.ok, r.reason or "accepted")
+    rogue = copy.copy(u)
+    rogue.session_keys, rogue.seen_tags = {}, {}
+    rogue._signer = cl.signer(cl.random_scalar().to_bytes(32, "big"))
+    r = s.authenticate(s.vehicles["V1"], rogue)
+    return AttackOutcome("UAV impersonation with copied symmetric credentials (no SK_U)",
+                         "TA", "certificateless signature sigma_U", not r.ok,
+                         r.reason or "accepted")
+
+
+def public_key_replacement() -> AttackOutcome:
+    """Type-I adversary: replaces the UAV's public key PK_U = (X_U, R_U) with values it
+    chose, trying to cancel the h*P_pub term so that it knows the matching key."""
+    s = world()
+    u, ta = s.uavs["U1"], s.root.tas["RTA-1"]
+    kgc = s.root.kgc.public
+    rec = ta.uavs[u.id_u]
+    x_new, x_pub = cl.new_secret_value()
+    r_guess = cl.random_scalar()
+    h_guess = cl.h1(u.id_u, x_pub, cl.encode_point(cl.base_mult(r_guess)), kgc)
+    # R' = r'G - h_guess*P_pub, hoping that Q' = X' + R' + h*P_pub = (x' + r')G
+    r_pub = cl.encode_point(cl.point_add(cl.base_mult(r_guess),
+                                         cl.point_neg(kgc.mult(h_guess))))
+    rec.pk = cl.verification_key(u.id_u, x_pub, r_pub, kgc)        # registry now holds PK'
+    rec.verifier = None
+    rogue = copy.copy(u)
+    rogue.session_keys, rogue.seen_tags = {}, {}
+    rogue._signer = cl.signer(((x_new + r_guess) % cl.N).to_bytes(32, "big"))
+    r = s.authenticate(s.vehicles["V1"], rogue, ta="RTA-1")
+    return AttackOutcome("Public-key replacement (Type-I certificateless adversary)", "TA",
+                         "X_U and R_U bound into h_U = H1(ID_U || X_U || R_U || P_pub)",
+                         not r.ok, r.reason or "accepted")
+
+
+def malicious_kgc() -> AttackOutcome:
+    """Type-II adversary: the KGC knows the partial private key D_U it issued (and the
+    master secret) but not the UAV's secret value x_U."""
+    s = world()
+    captured = {}
+    issue = s.root.issue_partial_key
+
+    def logging_kgc(ta, ident, x_pub):
+        r_pub, d = issue(ta, ident, x_pub)
+        captured[ident] = d
+        return r_pub, d
+
+    s.root.issue_partial_key = logging_kgc
+    u = s.register_uav("U-target", "Region-A", password=b"target-pass")
+    u.login()
+    rogue = copy.copy(u)
+    rogue.session_keys, rogue.seen_tags = {}, {}
+    rogue._signer = cl.signer(captured[u.id_u].to_bytes(32, "big"))
+    r = s.authenticate(s.vehicles["V1"], rogue)
+    return AttackOutcome("Malicious KGC signs with the partial key D_U (Type-II adversary)",
+                         "TA", "full key SK_U = x_U + D_U needs the UAV's secret value",
+                         not r.ok, r.reason or "accepted")
+
+
+def forged_partial_key() -> AttackOutcome:
+    """A forged or corrupted partial private key is delivered during enrolment."""
+    s = world()
+    issue = s.root.issue_partial_key
+    s.root.issue_partial_key = lambda ta, ident, x_pub: (lambda r, d: (r, (d + 1) % cl.N))(
+        *issue(ta, ident, x_pub))
+    try:
+        s.register_vehicle("V-forged", "Region-A")
+        return AttackOutcome("Forged partial private key at enrolment", "vehicle",
+                             "partial-key validation", False, "accepted")
+    except cl.EnrolmentError as e:
+        return AttackOutcome("Forged partial private key at enrolment", "vehicle",
+                             "check D*G = R + h*P_pub before use", True, str(e))
+
+
+def msg1_redirect_to_other_rta() -> AttackOutcome:
+    """A Msg1 captured on its way to RTA-1 is replayed to RTA-2 within Delta T."""
+    s = world()
+    cap = {}
+    s.authenticate(s.vehicles["V1"], s.uavs["U1"], ta="RTA-1", tap=_record(cap))
+    ta2 = s.root.tas["RTA-2"]
+    try:
+        s.run_ta_step(ta2, ta2.handle_msg1, ProtocolMessage.from_bytes(1, cap["msg1"]), 91)
+        return AttackOutcome("Msg1 replayed to a different RTA", "RTA-2", "ID_TA binding",
+                             False, "accepted")
+    except AuthError as e:
+        return AttackOutcome("Msg1 replayed to a different RTA inside Delta T", "RTA-2",
+                             "ID_TA signed into sigma_V", True, str(e))
 
 
 def msg3_substitution() -> AttackOutcome:
@@ -283,8 +371,7 @@ def forged_inter_ta() -> AttackOutcome:
 
 def unknown_tid() -> AttackOutcome:
     s = world()
-    from .primitives import encode_ts
-    msg = ProtocolMessage(1, rand(32), rand(16), encode_ts(s.clock.now_ms()), rand(16))
+    msg = ProtocolMessage(1, rand(CT_LEN[1]), rand(16), encode_ts(s.clock.now_ms()), rand(16))
     r = s.run_ta_step
     try:
         r(s.root.tas["RTA-1"], s.root.tas["RTA-1"].handle_msg1, msg, 93)
@@ -313,7 +400,9 @@ def all_scenarios() -> list[AttackOutcome]:
            timestamp_forgery()]
     out += [tamper(st) for st in ("msg1", "msg2", "msg3", "msg4")]
     out += [vehicle_impersonation(), ta_impersonation(), unknown_tid(), stolen_smart_card(),
-            uav_clone(), uav_physical_tamper(), msg3_substitution(), msg2_replay_to_uav(),
-            desynchronisation(True), revoked_vehicle(), revoked_uav(), untrusted_delegation(),
-            forged_inter_ta(), old_card_after_reenrolment()]
+            vehicle_signature_forgery(), uav_signature_forgery(), public_key_replacement(),
+            malicious_kgc(), forged_partial_key(), msg1_redirect_to_other_rta(),
+            msg3_substitution(), msg2_replay_to_uav(), desynchronisation(True),
+            revoked_vehicle(), revoked_uav(), untrusted_delegation(), forged_inter_ta(),
+            old_card_after_reenrolment()]
     return out

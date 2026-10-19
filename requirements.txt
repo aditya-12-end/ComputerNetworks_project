@@ -1,6 +1,7 @@
 # Runtime (library, demo, experiments)
 numpy>=1.26
 matplotlib>=3.8
+cryptography>=42.0      # ECDSA P-256 for the certificateless authentication layer (OpenSSL)
 
 # Report generation (report/build_report.py)
 python-docx>=1.1

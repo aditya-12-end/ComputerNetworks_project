@@ -7,11 +7,9 @@ import hashlib
 import os
 import time
 
-import numpy as np
-
 from common import save_json, stats
 from hfselap import ascon
-from hfselap.puf import ArbiterPUF, FuzzyExtractor
+from hfselap import certificateless as cl
 
 
 def bench(fn, runs: int) -> dict:
@@ -34,14 +32,12 @@ def main(runs: int = 2000):
     k16, k20, iv, ad = os.urandom(16), os.urandom(20), os.urandom(16), os.urandom(16)
     pt = os.urandom(64)                                # largest SELAP plaintext block
     c, tag = ascon.encrypt(k16, iv, ad, pt)
-    fe = FuzzyExtractor(7)
-    rng = np.random.default_rng(0)
-    puf = ArbiterPUF(fe.n_bits, 0.03, rng)
-    ch = os.urandom(16)
-    ref = puf.enrol_response(ch, 9)
-    _, helper = fe.gen(ref, rng)
-    noisy = puf.evaluate(ch)                           # Rep timed without the PUF read
     data = os.urandom(96)
+    sk = cl.random_scalar().to_bytes(32, "big")
+    key = cl.signer(sk)
+    ver = cl.verifier(cl.encode_point(cl.base_mult(int.from_bytes(sk, "big"))))
+    msg = os.urandom(90)                               # size of the signed vehicle input
+    sig = cl.sign(key, msg)
 
     results = {
         "SHA-256 hash (Th)": bench(lambda: hashlib.sha256(data).digest(), runs),
@@ -49,9 +45,8 @@ def main(runs: int = 2000):
         "Ascon-128 decryption, 64 B (Ta)": bench(lambda: ascon.decrypt(k16, iv, ad, c, tag), runs),
         "Ascon-80pq encryption, 64 B": bench(
             lambda: ascon.encrypt(k20, iv, ad, pt, "Ascon-80pq"), runs),
-        "PUF evaluation, 896-bit response (Tp)": bench(lambda: puf.evaluate(ch), runs),
-        "Fuzzy extractor Gen": bench(lambda: fe.gen(ref, rng), runs),
-        "Fuzzy extractor Rep (Tf)": bench(lambda: fe.rep_(noisy, helper), runs),
+        "ECDSA P-256 signing (Ts)": bench(lambda: cl.sign(key, msg), runs),
+        "ECDSA P-256 verification (Tv)": bench(lambda: cl.verify(ver, sig, msg), runs),
     }
     out = {"runs": runs, "primitives": results}
     save_json("e1_primitives", out)

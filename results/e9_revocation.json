@@ -2,29 +2,55 @@
   "rows": [
     {
       "N": 100,
-      "revoke_ms": 0.7517999911215156,
+      "revoke_ms": 1.2027000047964975,
       "revoke_bits": 1560,
       "rtas_notified": 3,
       "revoked_rejected_by_all_rtas": true,
-      "reenrol_ms": 0.9556000004522502,
-      "reenrol_bits": 1176,
+      "reenrol_ms": 5.408600001828745,
+      "reenrol_bits": 3208,
       "reenrolled_entity_authenticates": true,
-      "full_reset_ms": 85.3105999995023,
-      "full_reset_bits": 117600,
+      "full_reset_ms": 740.6177000084426,
+      "full_reset_bits": 320800,
       "reset_entities": 100
     },
     {
-      "N": 300,
-      "revoke_ms": 0.8480000105919316,
+      "N": 500,
+      "revoke_ms": 1.786100008757785,
       "revoke_bits": 1560,
       "rtas_notified": 3,
       "revoked_rejected_by_all_rtas": true,
-      "reenrol_ms": 1.6871999978320673,
-      "reenrol_bits": 1176,
+      "reenrol_ms": 8.768400002736598,
+      "reenrol_bits": 3208,
       "reenrolled_entity_authenticates": true,
-      "full_reset_ms": 313.79139999626204,
-      "full_reset_bits": 352800,
-      "reset_entities": 300
+      "full_reset_ms": 3506.195599999046,
+      "full_reset_bits": 1604000,
+      "reset_entities": 500
+    },
+    {
+      "N": 1000,
+      "revoke_ms": 0.639899997622706,
+      "revoke_bits": 1560,
+      "rtas_notified": 3,
+      "revoked_rejected_by_all_rtas": true,
+      "reenrol_ms": 5.546500004129484,
+      "reenrol_bits": 3208,
+      "reenrolled_entity_authenticates": true,
+      "full_reset_ms": 7145.423599999049,
+      "full_reset_bits": 3208000,
+      "reset_entities": 1000
+    },
+    {
+      "N": 2000,
+      "revoke_ms": 1.8912999948952347,
+      "revoke_bits": 1560,
+      "rtas_notified": 3,
+      "revoked_rejected_by_all_rtas": true,
+      "reenrol_ms": 5.094899999676272,
+      "reenrol_bits": 3208,
+      "reenrolled_entity_authenticates": true,
+      "full_reset_ms": 11306.957299995702,
+      "full_reset_bits": 6416000,
+      "reset_entities": 2000
     }
   ]
 }
